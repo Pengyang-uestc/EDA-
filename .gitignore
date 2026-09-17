@@ -12,3 +12,7 @@ out/
 *.ps1
 shot_*.png
 .commitmsg.txt
+
+# KiCad 打开工程时的临时锁文件
+~*.lck
+*.kicad_prl

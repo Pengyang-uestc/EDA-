@@ -7,3 +7,8 @@ out/
 *.user
 *.suo
 .vs/
+
+# 临时测试脚本与截图(自动化验证用,不进仓库)
+*.ps1
+shot_*.png
+.commitmsg.txt

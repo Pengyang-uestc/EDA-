@@ -71,9 +71,14 @@ MyEDA\build\Debug\MyEDA.exe
 MyEDA\build\Debug\MyEDA.exe docs\样例\半加器\half_adder.eda
 ```
 
-> **注意**:源代码已经按模块分目录(`core/ ui/ editor/ file/ sim/`),
-> 如果你之前生成过 `MyEDA/build`,拉取这次改动后请**删掉 build 目录重新执行上面的第 1 步**
-> (源码路径变了,旧工程文件会指向不存在的文件)。
+> **最省事的做法:双击仓库根目录的 `build.bat`** —— 它会自动找 wxWidgets、生成工程、
+> 编译,并跑一遍单元测试。不用记任何命令。
+> (命令行等价于 `.\build.ps1`;如果自动找不到 wxWidgets,用 `.\build.ps1 -Wx "<wx目录>"` 指定)
+
+> **源码目录结构调整过也没关系**:直接重新运行 `build.bat`(或上面的 cmake 命令)即可,
+> CMake 会检测到 `CMakeLists.txt` 变化并自动重新生成工程文件。
+> 已实测:用旧结构的 build 目录直接编译新结构源码,一次通过。
+> 万一真出问题,再 `.\build.ps1 -Clean` 清掉重建。
 
 ## 四、测试与命令行工具
 

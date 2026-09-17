@@ -26,6 +26,24 @@ public:
     // 导出 KiCad 网表(任务5)
     bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
 
+    // 导入 KiCad 网表:反向重建电路(坐标为默认网格排布,开关状态默认关)
+    bool ImportNetlist(const wxString& path) {
+        if (!LoadNetlist(path, components, wires))
+            return false;
+        int maxId = 0;
+        for (size_t i = 0; i < components.size(); i++)
+            if (components[i].id > maxId) maxId = components[i].id;
+        nextId = maxId + 1;
+        selectedId = -1;
+        wireMode = false;
+        wireFromComp = -1;
+        simRunning = false;
+        simOut.clear();
+        filePath = "";   // 网表不是工程文件,之后另存为 .eda
+        Refresh();
+        return true;
+    }
+
     // 逻辑仿真(任务6)
     void StartSim() { simRunning = true; RunSim(); }
     void StopSim()  { simRunning = false; Refresh(); }

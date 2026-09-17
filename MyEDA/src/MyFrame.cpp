@@ -264,7 +264,18 @@ void MyFrame::OnExportNetlist(wxCommandEvent&)
     else
         SetStatusText("导出失败!");
 }
-void MyFrame::OnImportNetlist(wxCommandEvent&){ SetStatusText("导入网表"); }
+void MyFrame::OnImportNetlist(wxCommandEvent&)
+{
+    // 预填默认名“未命名.net”:刚导出的网表就是这个名,直接点打开即可
+    wxFileDialog dlg(this, "导入 KiCad 网表", wxGetCwd(), "未命名.net",
+                     "KiCad 网表 (*.net)|*.net",
+                     wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+    if (dlg.ShowModal() != wxID_OK) return;
+    if (canvas->ImportNetlist(dlg.GetPath()))
+        SetStatusText("网表已导入(元件按网格重新排布):" + dlg.GetPath());
+    else
+        SetStatusText("导入失败!");
+}
 void MyFrame::OnUndo(wxCommandEvent&)         { SetStatusText("撤销"); }
 void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText("重做"); }
 void MyFrame::OnCut(wxCommandEvent&)          { SetStatusText("剪切"); }

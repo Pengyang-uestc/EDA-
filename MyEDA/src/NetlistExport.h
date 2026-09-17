@@ -62,3 +62,55 @@ inline bool SaveNetlist(const wxString& path,
     f.Close();
     return true;
 }
+
+// ================================================================
+// 导入:解析 KiCad 网表,反向重建电路。
+// 说明:网表只含"电气信息"(元件类型/编号、引脚连接),不含坐标和开关状态,
+// 所以导入后的元件按网格自动排布、开关全为"关"——这是网表这种格式的天然限制
+// ================================================================
+inline bool ParseKiCadNetlist(const wxString& text,
+                              wxVector<Component>& comps, wxVector<Wire>& wires) {
+    comps.clear();
+    wires.clear();
+
+    std::string t = std::string((const char*)text.utf8_str());
+    std::regex compRe("\\(comp \\(ref \"U(\\d+)\"\\)\\s+\\(value \"(AND|OR|NOT|XOR|SW|LED)\"\\)");
+    std::regex nodeRe("\\(node \\(ref \"U(\\d+)\"\\) \\(pin \"(\\d+)\"\\)\\)");
+    auto end = std::sregex_iterator();
+
+    // 元件:ref 还原编号,value 还原类型;坐标按导入顺序排成网格
+    int idx = 0;
+    for (auto it = std::sregex_iterator(t.begin(), t.end(), compRe); it != end; ++it) {
+        Component c;
+        c.id = std::stoi((*it)[1]);
+        c.type = GateTypeFromName((*it)[2]);
+        c.x = 180 + (idx % 3) * 230;
+        c.y = 160 + (idx / 3) * 170;
+        comps.push_back(c);
+        idx++;
+    }
+
+    // 节点序列:收集全部 (ref, pin),相邻两个节点拼成一根连线。
+    // 我们导出时每个网络正好 2 节点;别的网表一个网络可能多节点,
+    // 相邻配对是一种可行的重建方式(教学从简)
+    std::vector<std::pair<int,int>> nodes;
+    for (auto it = std::sregex_iterator(t.begin(), t.end(), nodeRe); it != end; ++it)
+        nodes.push_back({ std::stoi((*it)[1]), std::stoi((*it)[2]) });
+    for (size_t i = 0; i + 1 < nodes.size(); i += 2)
+        wires.push_back({ nodes[i].first, nodes[i].second,
+                          nodes[i+1].first, nodes[i+1].second });
+    return true;
+}
+
+// 读文件并解析
+inline bool LoadNetlist(const wxString& path,
+                        wxVector<Component>& comps, wxVector<Wire>& wires) {
+    wxFile f;
+    if (!f.Open(path, wxFile::read))
+        return false;
+    wxString content;
+    if (!f.ReadAll(&content, wxConvUTF8))
+        return false;
+    f.Close();
+    return ParseKiCadNetlist(content, comps, wires);
+}

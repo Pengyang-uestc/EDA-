@@ -20,3 +20,6 @@ shot_*.png
 
 # KiCad 的自动备份目录
 .history/
+
+# 例外:一键编译脚本要进仓库(其余 .ps1 是调试脚本,不进仓库)
+!build.ps1

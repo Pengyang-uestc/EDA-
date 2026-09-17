@@ -1,0 +1,9 @@
+# CMake / 构建产物
+build/
+cmake-build-*/
+out/
+
+# Visual Studio 临时文件
+*.user
+*.suo
+.vs/

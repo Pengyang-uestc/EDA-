@@ -100,7 +100,7 @@ void MyFrame::CreateMenuBar()
 // ================================================================
 void MyFrame::CreateToolBar()
 {
-    wxToolBar* toolBar = CreateToolBar(wxTB_HORIZONTAL | wxTB_FLAT | wxTB_TEXT);
+    wxToolBar* toolBar = wxFrame::CreateToolBar(wxTB_HORIZONTAL | wxTB_FLAT | wxTB_TEXT);
     toolBar->SetToolBitmapSize(wxSize(24, 24));
 
     // 找到 res 目录（跟可执行文件同级）
@@ -155,7 +155,8 @@ void MyFrame::CreateToolBar()
 void MyFrame::CreateStatusBar()
 {
     wxFrame::CreateStatusBar(2);
-    SetStatusWidths(2, (int[]){ -1, 200 });
+    int widths[] = { -1, 200 };
+    SetStatusWidths(2, widths);
     SetStatusText("就绪", 0);
     SetStatusText("工具：无", 1);
 }

@@ -18,6 +18,7 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnSave,           this, ID_MENU_SAVE);
     Bind(wxEVT_MENU, &MyFrame::OnSaveAs,         this, ID_MENU_SAVE_AS);
     Bind(wxEVT_MENU, &MyFrame::OnExportNetlist,  this, ID_MENU_EXPORT_NETLIST);
+    Bind(wxEVT_MENU, &MyFrame::OnExportKicadSch,  this, ID_MENU_EXPORT_SCH);
     Bind(wxEVT_MENU, &MyFrame::OnImportNetlist,  this, ID_MENU_IMPORT_NETLIST);
     Bind(wxEVT_MENU, &MyFrame::OnUndo,           this, ID_MENU_UNDO);
     Bind(wxEVT_MENU, &MyFrame::OnRedo,           this, ID_MENU_REDO);
@@ -58,6 +59,7 @@ void MyFrame::CreateMenuBar()
     fileMenu->AppendSeparator();
     fileMenu->Append(ID_MENU_IMPORT_NETLIST, "导入网表(&I)...", "导入标准网表文件");
     fileMenu->Append(ID_MENU_EXPORT_NETLIST, "导出网表(&E)...", "导出标准网表文件（供 PCB 软件使用）");
+    fileMenu->Append(ID_MENU_EXPORT_SCH, "导出 KiCad 原理图(&K)...", "导出 .kicad_sch，可在 KiCad 里打开并按 F8 更新 PCB");
     fileMenu->AppendSeparator();
     fileMenu->Append(wxID_EXIT,         "退出(&Q)\tCtrl+Q",  "退出程序");
     menuBar->Append(fileMenu, "文件(&F)");
@@ -340,6 +342,18 @@ void MyFrame::OnSaveAs(wxCommandEvent&)
     else
         SetStatusText("保存失败!");
 }
+void MyFrame::OnExportKicadSch(wxCommandEvent&)
+{
+    wxFileDialog dlg(this, "导出 KiCad 原理图", wxGetCwd(), "未命名.kicad_sch",
+                     "KiCad 原理图 (*.kicad_sch)|*.kicad_sch",
+                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dlg.ShowModal() != wxID_OK) return;
+    if (canvas->ExportKicadSch(dlg.GetPath()))
+        SetStatusText("KiCad 原理图已导出:" + dlg.GetPath() + " (在 KiCad 里打开后按 F8)");
+    else
+        SetStatusText("导出失败!");
+}
+
 void MyFrame::OnExportNetlist(wxCommandEvent&)
 {
     wxFileDialog dlg(this, "导出 KiCad 网表", wxGetCwd(), "未命名.net",

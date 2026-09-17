@@ -6,6 +6,7 @@
 #include "Component.h"
 #include "CircuitFile.h"
 #include "NetlistExport.h"
+#include "KicadSchExport.h"
 #include "Simulation.h"
 
 // 绘图区:显示网格和所有已放置的元件。
@@ -33,6 +34,14 @@ public:
 
     // 导出/导入 KiCad 网表(任务5)
     bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
+    // 导出 KiCad 原理图(.kicad_sch):在 KiCad 里打开后按 F8 即可"从原理图更新 PCB"
+    bool ExportKicadSch(const wxString& path) {
+        wxFile f;
+        if (!f.Open(path, wxFile::write)) return false;
+        f.Write(ExportKicadSchematic(components, wires), wxConvUTF8);
+        f.Close();
+        return true;
+    }
     bool ImportNetlist(const wxString& path);
 
     // 逻辑仿真(任务6)

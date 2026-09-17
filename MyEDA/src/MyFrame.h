@@ -24,6 +24,7 @@ enum {
     ID_MENU_ABOUT,
     ID_MENU_RESET_VIEW,
     ID_MENU_CUSTOM_GATE,   // 工程菜单:新建自定义元件
+    ID_MENU_EXPORT_SCH,    // 文件菜单:导出 KiCad 原理图
 };
 
 // ============ 工具栏 ID ============
@@ -72,6 +73,7 @@ private:
     void OnSave(wxCommandEvent& event);
     void OnSaveAs(wxCommandEvent& event);
     void OnExportNetlist(wxCommandEvent& event);
+    void OnExportKicadSch(wxCommandEvent& event);
     void OnImportNetlist(wxCommandEvent& event);
     void OnUndo(wxCommandEvent& event);
     void OnRedo(wxCommandEvent& event);

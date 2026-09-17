@@ -6,6 +6,7 @@
 #include "Simulation.h"
 #include "CircuitFile.h"
 #include "NetlistExport.h"
+#include "KicadSchExport.h"
 
 int failures = 0;
 void Check(const char* name, int got, int want) {
@@ -15,6 +16,26 @@ void Check(const char* name, int got, int want) {
 }
 
 int main(int argc, char** argv) {
+    // 小工具:test_sim.exe --export-kicad-sch 电路.eda 输出.kicad_sch
+    // 导出 KiCad 原理图(在 KiCad 里打开后按 F8 即可"从原理图更新 PCB")
+    if (argc > 3 && std::string(argv[1]) == "--export-kicad-sch") {
+        std::ifstream in(argv[2], std::ios::binary);
+        if (!in) { std::cout << "打不开文件: " << argv[2] << "\n"; return 1; }
+        std::string buf((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+        in.close();
+        wxVector<Component> cs; wxVector<Wire> ws; int next = 1;
+        JsonToCircuit(buf, cs, ws, next);
+        wxString sch = ExportKicadSchematic(cs, ws);
+        std::ofstream out(argv[3], std::ios::binary);
+        std::string text((const char*)sch.utf8_str());
+        out.write(text.data(), (std::streamsize)text.size());
+        out.close();
+        std::cout << "已导出 KiCad 原理图: " << argv[3] << "  (元件 " << cs.size()
+                  << " 个, 导线 " << ws.size() << " 根)\n";
+        return 0;
+    }
+
     // 小工具:test_sim.exe --export-netlist 电路.eda 输出.net
     // 命令行导出网表(不用开界面,方便批量转换/比对)
     if (argc > 3 && std::string(argv[1]) == "--export-netlist") {
@@ -196,6 +217,27 @@ int main(int argc, char** argv) {
         wxString nl2 = ExportKiCadNetlist(rc, rw);
         Check("NETLIST roundtrip identical", (nl == nl2) ? 1 : 0, 1);
         Check("NETLIST roundtrip wires", (int)rw.size(), 6);   // 4 个网络链式重连成 6 根线
+
+        // 导出 KiCad 原理图:结构自检(语法平衡 + 元件/导线数量)
+        // 更硬的验证用 kicad-cli(需要装 KiCad):
+        //   test_sim.exe --export-kicad-sch 电路.eda out.kicad_sch
+        //   kicad-cli sch export netlist -o out.net out.kicad_sch
+        // 实测:KiCad 从我们生成的原理图里提取出的 4 个网络,与我们的网表完全一致
+        wxString sch = ExportKicadSchematic(hc, hw);
+        std::string st((const char*)sch.utf8_str());
+        int depth = 0, minD = 0;
+        for (size_t i = 0; i < st.size(); i++) {
+            if (st[i] == '(') depth++;
+            else if (st[i] == ')') { depth--; if (depth < minD) minD = depth; }
+        }
+        Check("KICAD-SCH brackets balanced", (depth == 0 && minD >= 0) ? 1 : 0, 1);
+        int symCount = 0; size_t p2 = 0;
+        while ((p2 = st.find("(lib_id ", p2)) != std::string::npos) { symCount++; p2 += 8; }
+        Check("KICAD-SCH symbol instances", symCount, 6);
+        int wireCount = 0; p2 = 0;
+        while ((p2 = st.find("(wire", p2)) != std::string::npos) { wireCount++; p2 += 5; }
+        Check("KICAD-SCH wires", wireCount, 6);
+        Check("KICAD-SCH no literal percent-s", st.find("%s") == std::string::npos ? 1 : 0, 1);
     }
 
     // ============ 互操作:解析 KiCad 自己导出的网表 ============

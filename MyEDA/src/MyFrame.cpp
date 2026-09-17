@@ -161,9 +161,10 @@ void MyFrame::CreateClientArea()
     wxTreeItemId root = componentTree->AddRoot("元件库");
 
     wxTreeItemId gates = componentTree->AppendItem(root, "基本门电路");
-    componentTree->AppendItem(gates, "与门 AND");
-    componentTree->AppendItem(gates, "或门 OR");
-    componentTree->AppendItem(gates, "非门 NOT");
+    // 给每个树节点挂上"这是什么门"的数据,点击树时就能查到(见 OnTreeSelect)
+    componentTree->AppendItem(gates, "与门 AND", -1, -1, new GateItemData(GATE_AND));
+    componentTree->AppendItem(gates, "或门 OR",  -1, -1, new GateItemData(GATE_OR));
+    componentTree->AppendItem(gates, "非门 NOT", -1, -1, new GateItemData(GATE_NOT));
 
     wxTreeItemId io = componentTree->AppendItem(root, "输入/输出");
     componentTree->AppendItem(io, "开关");
@@ -171,6 +172,9 @@ void MyFrame::CreateClientArea()
 
     componentTree->Expand(root);
     componentTree->Expand(gates);
+
+    // 点击树节点 → 告诉画布"接下来要放这种元件"
+    componentTree->Bind(wxEVT_TREE_SEL_CHANGED, &MyFrame::OnTreeSelect, this);
 
     // ---------- 中:绘图区(自定义控件) ----------
     canvas = new DrawingCanvas(this);
@@ -218,7 +222,7 @@ void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText("重做"); }
 void MyFrame::OnCut(wxCommandEvent&)          { SetStatusText("剪切"); }
 void MyFrame::OnCopy(wxCommandEvent&)         { SetStatusText("复制"); }
 void MyFrame::OnPaste(wxCommandEvent&)        { SetStatusText("粘贴"); }
-void MyFrame::OnDelete(wxCommandEvent&)       { SetStatusText("删除"); }
+void MyFrame::OnDelete(wxCommandEvent&)       { canvas->DeleteSelected(); SetStatusText("删除选中元件"); }
 void MyFrame::OnSimulateStart(wxCommandEvent&){ SetStatusText("开始仿真"); }
 void MyFrame::OnSimulateStop(wxCommandEvent&) { SetStatusText("停止仿真"); }
 void MyFrame::OnAbout(wxCommandEvent&)
@@ -229,12 +233,28 @@ void MyFrame::OnAbout(wxCommandEvent&)
 void MyFrame::OnExit(wxCommandEvent&)         { Close(true); }
 
 // ================================================================
+// 元件库树:点击节点 → 画布切换到对应的放置工具
+// ================================================================
+void MyFrame::OnTreeSelect(wxTreeEvent& e)
+{
+    GateItemData* data = (GateItemData*)componentTree->GetItemData(e.GetItem());
+    if (!data) {
+        SetStatusText("该元件还没实现,先试试基本门电路", 1);
+        return;
+    }
+
+    canvas->SetPlaceType(data->type);
+    wxString name[] = { "与门", "或门", "非门" };
+    SetStatusText("放置:" + name[data->type] + ",点击画布放置", 1);
+}
+
+// ================================================================
 // 工具栏事件处理
 // ================================================================
 void MyFrame::OnToolSelect(wxCommandEvent&)   { SetStatusText("当前工具：选择", 1); }
 void MyFrame::OnToolWire(wxCommandEvent&)     { SetStatusText("当前工具：连线", 1); }
 void MyFrame::OnToolDelete(wxCommandEvent&)   { SetStatusText("执行：删除", 1); }
-void MyFrame::OnToolAnd(wxCommandEvent&)      { SetStatusText("放置：与门", 1); }
-void MyFrame::OnToolOr(wxCommandEvent&)       { SetStatusText("放置：或门", 1); }
-void MyFrame::OnToolNot(wxCommandEvent&)      { SetStatusText("放置：非门", 1); }
+void MyFrame::OnToolAnd(wxCommandEvent&)      { canvas->SetPlaceType(GATE_AND); SetStatusText("放置：与门,点击画布放置", 1); }
+void MyFrame::OnToolOr(wxCommandEvent&)       { canvas->SetPlaceType(GATE_OR);  SetStatusText("放置：或门,点击画布放置", 1); }
+void MyFrame::OnToolNot(wxCommandEvent&)      { canvas->SetPlaceType(GATE_NOT); SetStatusText("放置：非门,点击画布放置", 1); }
 void MyFrame::OnToolSimulate(wxCommandEvent&) { SetStatusText("仿真切换", 1); }

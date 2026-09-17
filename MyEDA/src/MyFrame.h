@@ -69,6 +69,9 @@ private:
     void OnAbout(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
 
+    // 元件库树事件
+    void OnTreeSelect(wxTreeEvent& event);
+
     // 工具栏事件
     void OnToolSelect(wxCommandEvent& event);
     void OnToolWire(wxCommandEvent& event);

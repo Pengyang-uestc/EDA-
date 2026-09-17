@@ -3,6 +3,7 @@
 #include <wx/vector.h>
 #include <functional>
 #include <map>
+#include <set>
 #include "Component.h"
 #include "CircuitFile.h"
 #include "NetlistExport.h"
@@ -11,20 +12,25 @@
 
 // 绘图区:显示网格和所有已放置的元件。
 // 交互约定:
-//   在左边树/工具栏选中元件类型 → 在这里点一下就放一个;
-//   点中已有元件则选中它,可以拖动,按 Delete 或点菜单删除;
-//   连线模式下点两个引脚完成一根连线;
-//   仿真模式下点开关切换 0/1 并实时重算
+//   放置模式(默认):点空白=放一个元件;点元件=选中(可拖动);
+//                   Shift/Ctrl+点=加选/取消;拖动=移动所有选中的元件
+//   选择模式(工具栏"选择"):空白处拖动=框选一片;点空白=清空选择
+//   连线模式:点两个引脚完成一根连线
+//   仿真模式:点开关切换 0/1 并实时重算
 class DrawingCanvas : public wxPanel {
 public:
     DrawingCanvas(wxWindow* parent);
 
-    void SetPlaceType(GateType t) { placeType = t; wireMode = false; }   // 设置当前要放的元件
-    void SetCustomPlace(const wxString& name, int truth) {               // 放置用户自定义元件
-        placeType = GATE_CUSTOM; placeCustomName = name; placeCustomTruth = truth; wireMode = false;
+    void SetPlaceType(GateType t) { placeType = t; wireMode = false; selectMode = false; }
+    void SetCustomPlace(const wxString& name, int truth) {   // 放置用户自定义元件
+        placeType = GATE_CUSTOM; placeCustomName = name; placeCustomTruth = truth;
+        wireMode = false; selectMode = false;
     }
-    void SetWireMode()             { wireMode = true; wireFromComp = -1; }  // 进入连线模式
-    void DeleteSelected();                             // 删除选中元件(编辑菜单/Delete键调用)
+    void SetWireMode()  { wireMode = true; wireFromComp = -1; selectMode = false; }
+    void SetSelectMode();                              // 进入"框选"模式
+    bool IsSelectMode() const { return selectMode; }
+    void SelectAll();                                  // 全选(编辑菜单 Ctrl+A)
+    void DeleteSelected();                             // 删除所有选中元件
 
     // 保存/打开:真正干活的是 CircuitFile.h 里的函数,这里只负责"拿数据"和"换数据"
     bool SaveFile(const wxString& path);
@@ -35,16 +41,10 @@ public:
     // "有未保存的修改"标记:关闭/新建/打开前用它提醒用户存盘
     bool IsDirty() const { return dirty; }
 
-    // 自定义元件库(属于文档数据:跟着电路一起存盘)
-    wxVector<CustomDef>& CustomDefs() { return customDefs; }
-    void RebuildCustomTreeRequested() {}   // 占位:重建树由主窗口负责
-
-    // 自定义元件的管理(配合主窗口的"管理自定义元件"对话框)
-    int  CountCustomInstances(const wxString& name) const;
-    void UpdateCustomInstances(const wxString& oldName, const wxString& newName, int truth);
-
     // 导出/导入 KiCad 网表(任务5)
     bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
+    bool ImportNetlist(const wxString& path);
+
     // 导出 KiCad 原理图(.kicad_sch):在 KiCad 里打开后按 F8 即可"从原理图更新 PCB"
     bool ExportKicadSch(const wxString& path) {
         wxFile f;
@@ -53,7 +53,6 @@ public:
         f.Close();
         return true;
     }
-    bool ImportNetlist(const wxString& path);
 
     // 逻辑仿真(任务6)
     void StartSim() { simRunning = true; RunSim(); NotifyChanged(); }
@@ -68,13 +67,22 @@ public:
     void CopySelected();
     void CutSelected();
     void PasteClipboard();
-    bool HasClipboard() const { return hasClipboard; }
+    bool HasClipboard() const { return clipComps.size() > 0; }
 
     // 给右侧属性表用的查询接口(属性表由 MyFrame 更新,画布只提供数据)
-    const Component* GetSelected() const;
+    int  GetSelectionCount() const { return (int)sel.size(); }
+    const Component* GetSelected() const;       // 只选中一个时返回它,否则 nullptr
+    void GetSelectedIds(wxVector<int>& out) const;
     int  GetOutputValue(int compId) const;      // 某元件输出引脚的仿真值
     int  GetPinValue(int compId, int pin) const;// 某输入引脚连到的来源值
     void SetSelectionCallback(std::function<void()> cb) { onSelection = cb; }
+
+    // 自定义元件库(属于文档数据:跟着电路一起存盘)
+    wxVector<CustomDef>& CustomDefs() { return customDefs; }
+
+    // 自定义元件的管理(配合主窗口的"管理自定义元件"对话框)
+    int  CountCustomInstances(const wxString& name) const;
+    void UpdateCustomInstances(const wxString& oldName, const wxString& newName, int truth);
 
 private:
     void OnPaint(wxPaintEvent&);
@@ -92,6 +100,7 @@ private:
     void PushUndo();                       // 改动前存档(快照式撤销)
     void CommitSnapshot(const wxString& snap);   // 外部算好的快照入栈(拖动用)
     void RestoreSnapshot(const wxString& snap);
+    bool InRect(const Component& c, int x1, int y1, int x2, int y2) const;  // 框选:元件是否落在框里
 
     wxVector<Component> components;   // 画布上所有元件(核心数据!)
     wxVector<CustomDef> customDefs;   // 用户自定义元件的库(名字+真值表)
@@ -100,8 +109,16 @@ private:
     wxString placeCustomName;         // 当前要放置的自定义元件名
     int placeCustomTruth = 0;         // 当前要放置的自定义元件真值表
     int nextId = 1;                   // 下一个元件的编号
-    int selectedId = -1;              // 当前选中的元件编号,-1 = 没选中
-    int dragOffX = 0, dragOffY = 0;   // 拖动时鼠标相对元件中心的偏移
+
+    // 选择:用集合支持多选(单选就是"集合里只有一个元素")
+    std::set<int> sel;
+    bool selectMode = false;          // "选择"工具:空白拖动 = 框选
+    bool rubberBand = false;          // 正在拉框?
+    wxPoint rbStart, rbEnd;           // 框的两个角
+
+    // 拖动:一次拖动所有选中的元件
+    struct DragItem { int id; int offX; int offY; };   // 每个元件相对鼠标的偏移
+    wxVector<DragItem> dragItems;
     bool dragging = false;            // 正在拖动?
     wxString dragStartSnapshot;       // 拖动开始前的快照(松手时若真的移动了才入栈)
 
@@ -118,9 +135,8 @@ private:
     wxVector<wxString> undoStack;
     wxVector<wxString> redoStack;
 
-    // 复制/粘贴
-    Component clipboard;
-    bool hasClipboard = false;
+    // 复制/粘贴(支持多个)
+    wxVector<Component> clipComps;
 
     wxString filePath;                          // 当前电路对应的文件(空=还没保存过)
     bool dirty = false;                         // 有未保存的修改?

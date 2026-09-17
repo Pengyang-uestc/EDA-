@@ -1,4 +1,5 @@
 #include "DrawingCanvas.h"
+#include <algorithm>
 
 DrawingCanvas::DrawingCanvas(wxWindow* parent)
     : wxPanel(parent, wxID_ANY)
@@ -8,6 +9,7 @@ DrawingCanvas::DrawingCanvas(wxWindow* parent)
     Bind(wxEVT_MOTION, &DrawingCanvas::OnMotion, this);
     Bind(wxEVT_LEFT_UP, &DrawingCanvas::OnLeftUp, this);
     Bind(wxEVT_KEY_DOWN, &DrawingCanvas::OnKeyDown, this);
+    SetFocus();
 }
 
 // ================================================================
@@ -37,7 +39,7 @@ void DrawingCanvas::RestoreSnapshot(const wxString& snap)
     int next = 1;
     JsonToCircuit(std::string((const char*)snap.utf8_str()), components, wires, next);
     nextId = next;
-    selectedId = -1;
+    sel.clear();
     wireMode = false;
     wireFromComp = -1;
     NotifyChanged();
@@ -66,14 +68,40 @@ bool DrawingCanvas::Redo()
 }
 
 // ================================================================
-// 复制/剪切/粘贴(粘贴到原位置右下偏移 30,自动分配新编号)
+// 选择:单选 = 集合里只有一个元素;多选就是这么自然实现的
+// ================================================================
+void DrawingCanvas::SetSelectMode()
+{
+    selectMode = true;
+    wireMode = false;
+    sel.clear();
+    NotifyChanged();
+}
+
+void DrawingCanvas::SelectAll()
+{
+    sel.clear();
+    for (size_t i = 0; i < components.size(); i++)
+        sel.insert(components[i].id);
+    NotifyChanged();
+}
+
+void DrawingCanvas::GetSelectedIds(wxVector<int>& out) const
+{
+    out.clear();
+    for (std::set<int>::const_iterator it = sel.begin(); it != sel.end(); ++it)
+        out.push_back(*it);
+}
+
+// ================================================================
+// 复制/剪切/粘贴(支持多个;粘贴到偏移 +30 并自动分配新编号)
 // ================================================================
 void DrawingCanvas::CopySelected()
 {
-    Component* c = FindById(selectedId);
-    if (!c) return;
-    clipboard = *c;
-    hasClipboard = true;
+    clipComps.clear();
+    for (size_t i = 0; i < components.size(); i++)
+        if (sel.count(components[i].id))
+            clipComps.push_back(components[i]);
 }
 
 void DrawingCanvas::CutSelected()
@@ -84,14 +112,17 @@ void DrawingCanvas::CutSelected()
 
 void DrawingCanvas::PasteClipboard()
 {
-    if (!hasClipboard) return;
+    if (clipComps.size() == 0) return;
     PushUndo();
-    Component c = clipboard;
-    c.id = nextId++;
-    c.x += 30;
-    c.y += 30;
-    components.push_back(c);
-    selectedId = c.id;      // 粘贴出来的直接选中,方便接着拖
+    sel.clear();
+    for (size_t i = 0; i < clipComps.size(); i++) {
+        Component c = clipComps[i];
+        c.id = nextId++;
+        c.x += 30;          // 往右下偏一点,不和原件重叠
+        c.y += 30;
+        components.push_back(c);
+        sel.insert(c.id);   // 粘贴出来的直接选中,方便接着拖
+    }
     dirty = true;
     NotifyChanged();
 }
@@ -103,7 +134,7 @@ void DrawingCanvas::NotifyChanged()
 }
 
 // ================================================================
-// 画图:每次系统要求重画时,把网格 + 所有元件重新画一遍
+// 画图:每次系统要求重画时,把网格 + 所有连线 + 所有元件重新画一遍
 // ================================================================
 void DrawingCanvas::OnPaint(wxPaintEvent&)
 {
@@ -141,13 +172,23 @@ void DrawingCanvas::OnPaint(wxPaintEvent&)
         }
     }
 
-    // 再画元件
+    // 框选中的选择框:蓝色虚线矩形
+    if (rubberBand) {
+        dc.SetPen(wxPen(*wxBLUE, 1, wxPENSTYLE_SHORT_DASH));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        int x1 = std::min(rbStart.x, rbEnd.x), x2 = std::max(rbStart.x, rbEnd.x);
+        int y1 = std::min(rbStart.y, rbEnd.y), y2 = std::max(rbStart.y, rbEnd.y);
+        dc.DrawRectangle(x1, y1, x2 - x1, y2 - y1);
+    }
+
+    // 再画元件(选中的会被 DrawGate 用蓝框标出)
     for (size_t i = 0; i < components.size(); i++)
         DrawGate(dc, components[i]);
 }
 
 // ================================================================
-// 鼠标左键按下:仿真模式切开关;连线模式走引脚逻辑;否则 点中元件=选中拖动,点空白=放置
+// 鼠标左键按下:仿真模式切开关;连线模式走引脚逻辑;
+//   否则 点中元件=选中(可拖动),点空白=放置(放置模式)或清空选择(选择模式)
 // ================================================================
 void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
 {
@@ -160,7 +201,7 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
         if (c && c->type == SW_INPUT) {
             c->state = !c->state;   // 切换!
             dirty = true;           // 开关状态也会存进文件,所以算一次修改
-            RunSim();               // 电路变了,重新算一遍
+            RunSim();
         }
         return;
     }
@@ -172,55 +213,91 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
             return;   // 没点到引脚,忽略(不退出连线模式)
 
         if (wireFromComp == -1) {
-            // 第一下:选定起点引脚
-            wireFromComp = cid;
+            wireFromComp = cid;      // 第一下:选定起点引脚
             wireFromPin = pin;
         } else {
-            // 第二下:完成连线,存入数据
-            PushUndo();
+            PushUndo();              // 第二下:完成连线
             Wire w = { wireFromComp, wireFromPin, cid, pin };
             wires.push_back(w);
             dirty = true;
-            wireFromComp = -1;   // 可以继续连下一根
+            wireFromComp = -1;       // 可以继续连下一根
         }
         NotifyChanged();
         return;
     }
 
-    // ----- 普通模式 -----
+    // ----- 普通/选择模式 -----
     int id = HitTest(e.GetX(), e.GetY());
+    bool add = e.ShiftDown() || e.ControlDown();   // Shift/Ctrl = 加选/取消选择
+
     if (id != -1) {
-        // 点中已有元件:选中 + 记住鼠标相对元件中心的偏移,开始拖动
-        selectedId = id;
-        Component* c = FindById(id);
-        dragOffX = e.GetX() - c->x;
-        dragOffY = e.GetY() - c->y;
+        if (add) {
+            // 加选:已经在集合里就移出(再点一次 = 取消选中)
+            if (sel.count(id)) sel.erase(id);
+            else               sel.insert(id);
+            NotifyChanged();
+            return;
+        }
+        // 选中它(如果它不在已选集合里,就改成只选它),然后开始拖动
+        if (!sel.count(id)) {
+            sel.clear();
+            sel.insert(id);
+        }
         dragging = true;
+        dragItems.clear();
+        for (std::set<int>::iterator it = sel.begin(); it != sel.end(); ++it) {
+            Component* c = FindById(*it);
+            if (!c) continue;
+            DragItem d;
+            d.id = *it;
+            d.offX = e.GetX() - c->x;
+            d.offY = e.GetY() - c->y;
+            dragItems.push_back(d);
+        }
         // 先不急着入撤销栈(可能只是点一下没拖);存个快照,松手时若移动了再入栈
         dragStartSnapshot = CircuitToJson(components, wires);
         CaptureMouse();   // 拖出画布外鼠标消息也归我们,松开才不会丢
-    } else {
-        // 点在空白处:放一个当前类型的元件
-        PushUndo();
-        Component c;
-        c.type = placeType;
-        c.x = e.GetX();
-        c.y = e.GetY();
-        c.id = nextId++;
-        if (placeType == GATE_CUSTOM) {
-            c.customName = placeCustomName;
-            c.truth = placeCustomTruth;
-        }
-        components.push_back(c);
-        selectedId = -1;
-        dirty = true;
+        NotifyChanged();
+        return;
     }
-    NotifyChanged();   // 通知系统重画(触发 OnPaint)
+
+    // 点在空白处
+    if (selectMode) {
+        // 选择模式:开始拉框(Shift/Ctrl 则保留原来的选择,做"追加框选")
+        if (!add) sel.clear();
+        rubberBand = true;
+        rbStart = wxPoint(e.GetX(), e.GetY());
+        rbEnd = rbStart;
+        CaptureMouse();
+        NotifyChanged();
+        return;
+    }
+
+    // 放置模式:放一个当前类型的元件
+    PushUndo();
+    Component c;
+    c.type = placeType;
+    c.x = e.GetX();
+    c.y = e.GetY();
+    c.id = nextId++;
+    if (placeType == GATE_CUSTOM) {
+        c.customName = placeCustomName;
+        c.truth = placeCustomTruth;
+    }
+    components.push_back(c);
+    sel.clear();
+    dirty = true;
+    NotifyChanged();
 }
 
-// 拖动中:元件跟着鼠标走;连线模式:橡皮筋终点跟着鼠标走
+// 拖动中:所有选中的元件跟着鼠标走;框选中:框跟着鼠标走;连线模式:预览线跟着走
 void DrawingCanvas::OnMotion(wxMouseEvent& e)
 {
+    if (rubberBand) {
+        rbEnd = wxPoint(e.GetX(), e.GetY());
+        Refresh();
+        return;
+    }
     if (wireMode && wireFromComp != -1) {
         wireEnd = wxPoint(e.GetX(), e.GetY());
         Refresh();
@@ -228,16 +305,32 @@ void DrawingCanvas::OnMotion(wxMouseEvent& e)
     }
     if (!dragging)
         return;
-    Component* c = FindById(selectedId);
-    if (c) {
-        c->x = e.GetX() - dragOffX;
-        c->y = e.GetY() - dragOffY;
-        Refresh();
+    for (size_t i = 0; i < dragItems.size(); i++) {
+        Component* c = FindById(dragItems[i].id);
+        if (!c) continue;
+        c->x = e.GetX() - dragItems[i].offX;
+        c->y = e.GetY() - dragItems[i].offY;
     }
+    Refresh();
 }
 
 void DrawingCanvas::OnLeftUp(wxMouseEvent&)
 {
+    // 框选结束:把落在框里的元件选中
+    if (rubberBand) {
+        rubberBand = false;
+        ReleaseMouse();
+        int x1 = std::min(rbStart.x, rbEnd.x), x2 = std::max(rbStart.x, rbEnd.x);
+        int y1 = std::min(rbStart.y, rbEnd.y), y2 = std::max(rbStart.y, rbEnd.y);
+        if (x2 - x1 > 3 || y2 - y1 > 3) {           // 太小的框当作"点一下"处理
+            for (size_t i = 0; i < components.size(); i++)
+                if (InRect(components[i], x1, y1, x2, y2))
+                    sel.insert(components[i].id);
+        }
+        NotifyChanged();
+        return;
+    }
+
     if (dragging) {
         dragging = false;
         ReleaseMouse();
@@ -250,13 +343,24 @@ void DrawingCanvas::OnLeftUp(wxMouseEvent&)
     }
 }
 
-// 按 Delete 删除选中元件
+// 元件是否落在选择框里(用元件的方框和选择框求交)
+bool DrawingCanvas::InRect(const Component& c, int x1, int y1, int x2, int y2) const
+{
+    int r = (c.type == GATE_CUSTOM) ? 26 : 25;
+    return !(c.x + r < x1 || c.x - r > x2 || c.y + r < y1 || c.y - r > y2);
+}
+
+// Delete 删除选中元件;Esc 取消选择
 void DrawingCanvas::OnKeyDown(wxKeyEvent& e)
 {
-    if (e.GetKeyCode() == WXK_DELETE)
+    if (e.GetKeyCode() == WXK_DELETE) {
         DeleteSelected();
-    else
+    } else if (e.GetKeyCode() == WXK_ESCAPE) {
+        sel.clear();
+        NotifyChanged();
+    } else {
         e.Skip();
+    }
 }
 
 // ================================================================
@@ -267,7 +371,7 @@ void DrawingCanvas::NewDocument()
     components.clear();
     wires.clear();
     nextId = 1;
-    selectedId = -1;
+    sel.clear();
     wireMode = false;
     wireFromComp = -1;
     simRunning = false;
@@ -300,7 +404,7 @@ bool DrawingCanvas::LoadFile(const wxString& path)
             if (customDefs[k].name == loadedDefs[i].name) { customDefs[k].truth = loadedDefs[i].truth; merged = true; break; }
         if (!merged) customDefs.push_back(loadedDefs[i]);
     }
-    selectedId = -1;       // 旧电路的选中状态全部作废
+    sel.clear();           // 旧电路的选中状态全部作废
     wireMode = false;
     wireFromComp = -1;
     simRunning = false;
@@ -321,7 +425,7 @@ bool DrawingCanvas::ImportNetlist(const wxString& path)
     for (size_t i = 0; i < components.size(); i++)
         if (components[i].id > maxId) maxId = components[i].id;
     nextId = maxId + 1;
-    selectedId = -1;
+    sel.clear();
     wireMode = false;
     wireFromComp = -1;
     simRunning = false;
@@ -335,26 +439,27 @@ bool DrawingCanvas::ImportNetlist(const wxString& path)
 }
 
 // ================================================================
-// 删除选中元件(它身上的连线也要一起删,不然连线会"悬空"指向不存在的元件)
+// 删除所有选中元件(它身上的连线也要一起删,不然连线会"悬空"指向不存在的元件)
 // ================================================================
 void DrawingCanvas::DeleteSelected()
 {
-    for (size_t i = 0; i < components.size(); i++) {
-        if (components[i].id == selectedId) {
-            PushUndo();
-            components.erase(components.begin() + i);
+    if (sel.empty()) return;
+    PushUndo();
 
-            // 从后往前删连线,避免删除时下标错位
-            for (int j = (int)wires.size() - 1; j >= 0; j--) {
-                if (wires[j].comp1 == selectedId || wires[j].comp2 == selectedId)
-                    wires.erase(wires.begin() + j);
-            }
-            selectedId = -1;
-            dirty = true;
-            NotifyChanged();
-            return;
+    // 从后往前删元件,避免删除时下标错位
+    for (int i = (int)components.size() - 1; i >= 0; i--) {
+        if (!sel.count(components[i].id)) continue;
+        int goneId = components[i].id;
+        components.erase(components.begin() + i);
+        // 顺带删掉挂在这个元件上的连线
+        for (int j = (int)wires.size() - 1; j >= 0; j--) {
+            if (wires[j].comp1 == goneId || wires[j].comp2 == goneId)
+                wires.erase(wires.begin() + j);
         }
     }
+    sel.clear();
+    dirty = true;
+    NotifyChanged();
 }
 
 // ================================================================
@@ -402,8 +507,10 @@ Component* DrawingCanvas::FindById(int id)
 
 const Component* DrawingCanvas::GetSelected() const
 {
+    if (sel.size() != 1) return nullptr;   // 多选时不返回单个(属性表会显示"N 个元件")
+    int id = *sel.begin();
     for (size_t i = 0; i < components.size(); i++)
-        if (components[i].id == selectedId)
+        if (components[i].id == id)
             return &components[i];
     return nullptr;
 }
@@ -414,7 +521,8 @@ const Component* DrawingCanvas::GetSelected() const
 // ================================================================
 void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
 {
-    dc.SetPen((c.id == selectedId) ? wxPen(*wxBLUE, 2) : wxPen(*wxBLACK, 1));
+    bool isSel = sel.count(c.id) > 0;
+    dc.SetPen(isSel ? wxPen(*wxBLUE, 2) : wxPen(*wxBLACK, 1));
     dc.SetBrush(*wxWHITE_BRUSH);
     dc.SetTextForeground(*wxBLACK);
 

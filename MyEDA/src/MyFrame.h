@@ -26,6 +26,7 @@ enum {
     ID_MENU_CUSTOM_GATE,   // 工程菜单:新建自定义元件
     ID_MENU_EXPORT_SCH,    // 文件菜单:导出 KiCad 原理图
     ID_MENU_MANAGE_CUSTOM, // 工程菜单:管理自定义元件
+    ID_MENU_SELECT_ALL,    // 编辑菜单:全选
 };
 
 // ============ 工具栏 ID ============
@@ -86,6 +87,7 @@ private:
     void OnSimulateStop(wxCommandEvent& event);
     void OnCustomGate(wxCommandEvent& event);
     void OnManageCustom(wxCommandEvent& event);
+    void OnSelectAll(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);

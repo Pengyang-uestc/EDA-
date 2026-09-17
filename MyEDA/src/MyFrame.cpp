@@ -30,6 +30,7 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStop,   this, ID_MENU_SIMULATE_STOP);
     Bind(wxEVT_MENU, &MyFrame::OnCustomGate,     this, ID_MENU_CUSTOM_GATE);
     Bind(wxEVT_MENU, &MyFrame::OnManageCustom,   this, ID_MENU_MANAGE_CUSTOM);
+    Bind(wxEVT_MENU, &MyFrame::OnSelectAll,      this, ID_MENU_SELECT_ALL);
     Bind(wxEVT_CLOSE_WINDOW, &MyFrame::OnClose,  this);
     Bind(wxEVT_MENU, &MyFrame::OnAbout,          this, ID_MENU_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit,           this, wxID_EXIT);
@@ -75,6 +76,8 @@ void MyFrame::CreateMenuBar()
     editMenu->Append(ID_MENU_COPY,   "复制(&C)\tCtrl+C",       "复制选中元件");
     editMenu->Append(ID_MENU_PASTE,  "粘贴(&P)\tCtrl+V",       "粘贴元件");
     editMenu->Append(ID_MENU_DELETE, "删除(&D)\tDelete",       "删除选中元件");
+    editMenu->AppendSeparator();
+    editMenu->Append(ID_MENU_SELECT_ALL, "全选(&A)\tCtrl+A", "选中画布上所有元件");
     menuBar->Append(editMenu, "编辑(&E)");
 
     // ---------- 工程 ----------
@@ -233,6 +236,26 @@ void MyFrame::RefreshPropertyTable()
 {
     propertyList->DeleteAllItems();          // 每次全部重建,行数不固定也不怕
     const Component* c = canvas->GetSelected();
+
+    if (!c && canvas->GetSelectionCount() > 1) {
+        // 多选:显示汇总(单个元件的细节只在单选时显示)
+        wxVector<int> ids;
+        canvas->GetSelectedIds(ids);
+        wxString idList;
+        for (size_t i = 0; i < ids.size() && i < 8; i++) {
+            if (i) idList += ", ";
+            idList += wxString::Format("U%d", ids[i]);
+        }
+        if (ids.size() > 8) idList += " ...";
+        long r1 = propertyList->InsertItem(propertyList->GetItemCount(), "已选中");
+        propertyList->SetItem(r1, 1, wxString::Format("%d 个元件", (int)ids.size()));
+        long r2 = propertyList->InsertItem(propertyList->GetItemCount(), "编号");
+        propertyList->SetItem(r2, 1, idList);
+        long r3 = propertyList->InsertItem(propertyList->GetItemCount(), "提示");
+        propertyList->SetItem(r3, 1, "可整体拖动 / 删除 / 复制");
+        return;
+    }
+
     if (!c) {
         long row = propertyList->InsertItem(0, "选中");
         propertyList->SetItem(row, 1, "(未选中元件)：点画布上的元件查看");
@@ -371,6 +394,12 @@ void MyFrame::ManageCustomGates()
 }
 
 void MyFrame::OnManageCustom(wxCommandEvent&) { ManageCustomGates(); }
+
+void MyFrame::OnSelectAll(wxCommandEvent&)
+{
+    canvas->SelectAll();
+    SetStatusText(wxString::Format("已全选 %d 个元件", canvas->GetSelectionCount()), 1);
+}
 
 // ================================================================
 // 标题栏:显示文件名和"有未保存修改"星号
@@ -570,7 +599,7 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
 // ================================================================
 // 工具栏事件处理
 // ================================================================
-void MyFrame::OnToolSelect(wxCommandEvent&)   { SetStatusText("当前工具：选择", 1); }
+void MyFrame::OnToolSelect(wxCommandEvent&)   { canvas->SetSelectMode(); SetStatusText("选择模式：空白处拖动=框选，Shift+点=加选，Esc=取消选择", 1); }
 void MyFrame::OnToolWire(wxCommandEvent&)     { canvas->SetWireMode(); SetStatusText("连线:先点起点引脚,再点终点引脚", 1); }
 void MyFrame::OnToolDelete(wxCommandEvent&)   { SetStatusText("执行：删除", 1); }
 void MyFrame::OnToolAnd(wxCommandEvent&)      { canvas->SetPlaceType(GATE_AND); SetStatusText("放置：与门,点击画布放置", 1); }

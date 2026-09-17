@@ -31,6 +31,16 @@ inline wxString PinTypeOf(const Component& c, int pin) {
     return (pin == 2) ? "output" : "input";   // 多输入门:0/1 输入,2 输出
 }
 
+// 元件的默认封装(PCB 上的实际焊盘图形)。
+// 为什么要写:KiCad 导入网表时,没有封装的元件会报"无法添加 XXX(没有分配封装)"
+// 而进不了 PCB。这里给出可用的默认封装,演示时能一路走通;
+// 真实项目应当由用户按实际元器件选封装(在 KiCad 里改即可,库名都是 KiCad 标准库)
+inline wxString DefaultFootprint(const Component& c) {
+    if (c.type == SW_INPUT) return "Button_Switch_THT:SW_PUSH_6mm";   // 轻触按键(2 脚)
+    if (c.type == SW_LED)   return "LED_THT:LED_D5.0mm";              // 5mm 直插 LED(2 脚)
+    return "Package_DIP:DIP-14_W7.62mm";                             // 逻辑门按 14 脚 DIP(类 74 系列)
+}
+
 // 元件在网表里的"型号名":普通门用类型名,自定义元件用它自己的名字
 // (真实 EDA 也是这样:网表只引用元件名,具体行为由元件库提供)
 inline wxString PartName(const Component& c) {
@@ -105,8 +115,11 @@ inline wxString ExportKiCadNetlist(const wxVector<Component>& comps, const wxVec
         const Component& c = comps[i];
         s += wxString::Format("    (comp (ref \"U%d\")\n", c.id);
         s += wxString::Format("      (value \"%s\")\n", PartName(c));
+        // 这个紧跟 value 的 (footprint ...) 才是 KiCad 导入时读取封装的字段
+        // (KiCad 自己导出的网表里也有它,和下面 fields 里的那份是重复写两遍)
+        s += wxString::Format("      (footprint \"%s\")\n", DefaultFootprint(c));
         s += "      (fields\n";
-        s += "        (field (name \"Footprint\"))\n";     // 我们还没有封装库,留空
+        s += wxString::Format("        (field (name \"Footprint\") \"%s\")\n", DefaultFootprint(c));
         s += "        (field (name \"Datasheet\"))\n";
         s += "      )\n";
         s += wxString::Format("      (libsource (lib \"MyEDA\") (part \"%s\") (description \"\"))\n",
@@ -133,7 +146,8 @@ inline wxString ExportKiCadNetlist(const wxVector<Component>& comps, const wxVec
         emitted.insert(part);
         s += wxString::Format("    (libpart (lib \"MyEDA\") (part \"%s\")\n", part);
         s += "      (fields (field (name \"Reference\") \"U\") ";
-        s += wxString::Format("(field (name \"Value\") \"%s\"))\n", part);
+        s += wxString::Format("(field (name \"Value\") \"%s\") ", part);
+        s += wxString::Format("(field (name \"Footprint\") \"%s\"))\n", DefaultFootprint(c));
         s += "      (pins\n";
         for (int p = 0; p < GatePinCount(c); p++)
             s += wxString::Format("        (pin (num \"%d\") (name \"\") (type \"%s\"))\n",

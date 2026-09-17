@@ -8,8 +8,9 @@
   (components
     (comp (ref "U1")
       (value "SW")
+      (footprint "Button_Switch_THT:SW_PUSH_6mm")
       (fields
-        (field (name "Footprint"))
+        (field (name "Footprint") "Button_Switch_THT:SW_PUSH_6mm")
         (field (name "Datasheet"))
       )
       (libsource (lib "MyEDA") (part "SW") (description ""))
@@ -23,8 +24,9 @@
     )
     (comp (ref "U2")
       (value "SW")
+      (footprint "Button_Switch_THT:SW_PUSH_6mm")
       (fields
-        (field (name "Footprint"))
+        (field (name "Footprint") "Button_Switch_THT:SW_PUSH_6mm")
         (field (name "Datasheet"))
       )
       (libsource (lib "MyEDA") (part "SW") (description ""))
@@ -38,8 +40,9 @@
     )
     (comp (ref "U3")
       (value "XOR")
+      (footprint "Package_DIP:DIP-14_W7.62mm")
       (fields
-        (field (name "Footprint"))
+        (field (name "Footprint") "Package_DIP:DIP-14_W7.62mm")
         (field (name "Datasheet"))
       )
       (libsource (lib "MyEDA") (part "XOR") (description ""))
@@ -55,8 +58,9 @@
     )
     (comp (ref "U4")
       (value "AND")
+      (footprint "Package_DIP:DIP-14_W7.62mm")
       (fields
-        (field (name "Footprint"))
+        (field (name "Footprint") "Package_DIP:DIP-14_W7.62mm")
         (field (name "Datasheet"))
       )
       (libsource (lib "MyEDA") (part "AND") (description ""))
@@ -72,8 +76,9 @@
     )
     (comp (ref "U5")
       (value "LED")
+      (footprint "LED_THT:LED_D5.0mm")
       (fields
-        (field (name "Footprint"))
+        (field (name "Footprint") "LED_THT:LED_D5.0mm")
         (field (name "Datasheet"))
       )
       (libsource (lib "MyEDA") (part "LED") (description ""))
@@ -87,8 +92,9 @@
     )
     (comp (ref "U6")
       (value "LED")
+      (footprint "LED_THT:LED_D5.0mm")
       (fields
-        (field (name "Footprint"))
+        (field (name "Footprint") "LED_THT:LED_D5.0mm")
         (field (name "Datasheet"))
       )
       (libsource (lib "MyEDA") (part "LED") (description ""))
@@ -103,13 +109,13 @@
   )
   (libparts
     (libpart (lib "MyEDA") (part "SW")
-      (fields (field (name "Reference") "U") (field (name "Value") "SW"))
+      (fields (field (name "Reference") "U") (field (name "Value") "SW") (field (name "Footprint") "Button_Switch_THT:SW_PUSH_6mm"))
       (pins
         (pin (num "1") (name "") (type "output"))
       )
     )
     (libpart (lib "MyEDA") (part "XOR")
-      (fields (field (name "Reference") "U") (field (name "Value") "XOR"))
+      (fields (field (name "Reference") "U") (field (name "Value") "XOR") (field (name "Footprint") "Package_DIP:DIP-14_W7.62mm"))
       (pins
         (pin (num "1") (name "") (type "input"))
         (pin (num "2") (name "") (type "input"))
@@ -117,7 +123,7 @@
       )
     )
     (libpart (lib "MyEDA") (part "AND")
-      (fields (field (name "Reference") "U") (field (name "Value") "AND"))
+      (fields (field (name "Reference") "U") (field (name "Value") "AND") (field (name "Footprint") "Package_DIP:DIP-14_W7.62mm"))
       (pins
         (pin (num "1") (name "") (type "input"))
         (pin (num "2") (name "") (type "input"))
@@ -125,7 +131,7 @@
       )
     )
     (libpart (lib "MyEDA") (part "LED")
-      (fields (field (name "Reference") "U") (field (name "Value") "LED"))
+      (fields (field (name "Reference") "U") (field (name "Value") "LED") (field (name "Footprint") "LED_THT:LED_D5.0mm"))
       (pins
         (pin (num "1") (name "") (type "input"))
       )

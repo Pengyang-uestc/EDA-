@@ -16,3 +16,4 @@ shot_*.png
 # KiCad 打开工程时的临时锁文件
 ~*.lck
 *.kicad_prl
+~*.kicad_pcb.lck

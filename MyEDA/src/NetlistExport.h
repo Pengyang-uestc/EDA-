@@ -11,6 +11,14 @@
 // 我们约定:每根连线 = 一个网络(两个节点:起点引脚 + 终点引脚)
 // ================================================================
 
+// 元件在网表里的"型号名":普通门用类型名,自定义元件用它自己的名字
+// (真实 EDA 也是这样:网表只引用元件名,具体行为由元件库提供)
+inline wxString PartName(const Component& c) {
+    if (c.type == GATE_CUSTOM && !c.customName.empty())
+        return c.customName;
+    return GateTypeName(c.type);
+}
+
 // 把整份电路导出为 KiCad 网表文本
 inline wxString ExportKiCadNetlist(const wxVector<Component>& comps, const wxVector<Wire>& wires) {
     wxString s = "(export (version \"E\")\n";
@@ -25,10 +33,10 @@ inline wxString ExportKiCadNetlist(const wxVector<Component>& comps, const wxVec
     for (size_t i = 0; i < comps.size(); i++) {
         const Component& c = comps[i];
         s += wxString::Format("    (comp (ref \"U%d\")\n", c.id);
-        s += wxString::Format("      (value \"%s\")\n", GateTypeName(c.type));
+        s += wxString::Format("      (value \"%s\")\n", PartName(c));
         s += "      (footprint \"\")\n";
         s += wxString::Format("      (libsource (lib \"MyEDA\") (part \"%s\") (description \"\"))\n",
-                              GateTypeName(c.type));
+                              PartName(c));
         s += "      (sheetpath (names \"/\") (tstamps \"/\"))\n";
         s += "    )\n";
     }
@@ -74,16 +82,24 @@ inline bool ParseKiCadNetlist(const wxString& text,
     wires.clear();
 
     std::string t = std::string((const char*)text.utf8_str());
-    std::regex compRe("\\(comp \\(ref \"U(\\d+)\"\\)\\s+\\(value \"(AND|OR|NOT|XOR|SW|LED)\"\\)");
+    std::regex compRe("\\(comp \\(ref \"U(\\d+)\"\\)\\s+\\(value \"([^\"]+)\"\\)");
     std::regex nodeRe("\\(node \\(ref \"U(\\d+)\"\\) \\(pin \"(\\d+)\"\\)\\)");
     auto end = std::sregex_iterator();
 
-    // 元件:ref 还原编号,value 还原类型;坐标按导入顺序排成网格
+    // 元件:ref 还原编号,value 还原类型;坐标按导入顺序排成网格。
+    // value 不是标准门名(AND/OR/...)= 自定义元件:按名字重建一个(真值表在库里,网表不含行为,所以默认全 0)
     int idx = 0;
     for (auto it = std::sregex_iterator(t.begin(), t.end(), compRe); it != end; ++it) {
         Component c;
         c.id = std::stoi((*it)[1]);
-        c.type = GateTypeFromName((*it)[2]);
+        std::string val = (*it)[2];
+        c.type = GateTypeFromName(val);          // 不认识的名字会落到 AND,下面纠正
+        if (val != "AND" && val != "OR" && val != "NOT" && val != "XOR" &&
+            val != "NAND" && val != "NOR" && val != "SW" && val != "LED") {
+            c.type = GATE_CUSTOM;
+            c.customName = wxString::FromUTF8(val.c_str());
+            c.truth = 0;   // 网表里没有真值表,导入后需在元件库里补行为
+        }
         c.x = 180 + (idx % 3) * 230;
         c.y = 160 + (idx / 3) * 170;
         comps.push_back(c);

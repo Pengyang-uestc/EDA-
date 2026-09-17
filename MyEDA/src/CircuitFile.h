@@ -20,6 +20,7 @@ inline wxString GateTypeName(GateType t) {
     if (t == GATE_XOR) return "XOR";
     if (t == GATE_NAND) return "NAND";
     if (t == GATE_NOR) return "NOR";
+    if (t == GATE_CUSTOM) return "CUSTOM";   // 自定义元件:名字另存在 name 字段
     if (t == SW_INPUT) return "SW";
     return "LED";
 }
@@ -29,6 +30,7 @@ inline GateType GateTypeFromName(const std::string& s) {
     if (s == "XOR") return GATE_XOR;
     if (s == "NAND") return GATE_NAND;
     if (s == "NOR") return GATE_NOR;
+    if (s == "CUSTOM") return GATE_CUSTOM;
     if (s == "SW")  return SW_INPUT;
     if (s == "LED") return SW_LED;
     return GATE_AND;
@@ -40,8 +42,9 @@ inline wxString CircuitToJson(const wxVector<Component>& comps, const wxVector<W
     wxString s = "{\n  \"components\": [\n";
     for (size_t i = 0; i < comps.size(); i++) {
         const Component& c = comps[i];
-        s += wxString::Format("    {\"id\":%d,\"type\":\"%s\",\"x\":%d,\"y\":%d,\"state\":%d}%s\n",
+        s += wxString::Format("    {\"id\":%d,\"type\":\"%s\",\"x\":%d,\"y\":%d,\"state\":%d,\"name\":\"%s\",\"truth\":%d}%s\n",
                               c.id, GateTypeName(c.type), c.x, c.y, c.state ? 1 : 0,
+                              c.customName, c.truth,
                               (i + 1 < comps.size()) ? "," : "");
     }
     s += "  ],\n  \"wires\": [\n";
@@ -62,7 +65,9 @@ inline bool JsonToCircuit(const std::string& text,
     comps.clear();
     wires.clear();
 
-    std::regex compRe("\\{\"id\":(\\d+),\"type\":\"(AND|OR|NOT|XOR|NAND|NOR|SW|LED)\",\"x\":(-?\\d+),\"y\":(-?\\d+),\"state\":(\\d)\\}");
+    // name/truth 是后加的字段,用可选组 (…)? 让旧存档也能读——
+    // 工程惯例:写文件严格、读文件宽容(否则老版本存的文件全打不开)
+    std::regex compRe("\\{\"id\":(\\d+),\"type\":\"(AND|OR|NOT|XOR|NAND|NOR|CUSTOM|SW|LED)\",\"x\":(-?\\d+),\"y\":(-?\\d+),\"state\":(\\d)(,\"name\":\"([^\"]*)\",\"truth\":(\\d+))?\\}");
     std::regex wireRe("\\[(\\d+),(\\d+),(\\d+),(\\d+)\\]");
     auto end = std::sregex_iterator();
 
@@ -74,6 +79,8 @@ inline bool JsonToCircuit(const std::string& text,
         c.x    = std::stoi((*it)[3]);
         c.y    = std::stoi((*it)[4]);
         c.state = ((*it)[5] == "1");
+        c.customName = (*it)[7].matched ? wxString::FromUTF8(std::string((*it)[7]).c_str()) : wxString();
+        c.truth = (*it)[8].matched ? std::stoi((*it)[8]) : 0;
         comps.push_back(c);
         if (c.id > maxId) maxId = c.id;
     }

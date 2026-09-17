@@ -27,6 +27,7 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnDelete,         this, ID_MENU_DELETE);
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStart,  this, ID_MENU_SIMULATE_START);
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStop,   this, ID_MENU_SIMULATE_STOP);
+    Bind(wxEVT_MENU, &MyFrame::OnCustomGate,     this, ID_MENU_CUSTOM_GATE);
     Bind(wxEVT_MENU, &MyFrame::OnAbout,          this, ID_MENU_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit,           this, wxID_EXIT);
 
@@ -75,6 +76,7 @@ void MyFrame::CreateMenuBar()
     // ---------- 工程 ----------
     wxMenu* projectMenu = new wxMenu();
     projectMenu->Append(ID_MENU_NEW, "新建工程(&N)...", "新建工程");
+    projectMenu->Append(ID_MENU_CUSTOM_GATE, "新建自定义元件(&C)...", "用真值表定义一个新元件");
     menuBar->Append(projectMenu, "工程(&P)");
 
     // ---------- 仿真 ----------
@@ -173,8 +175,14 @@ void MyFrame::CreateClientArea()
     componentTree->AppendItem(io, "开关", -1, -1, new GateItemData(SW_INPUT));
     componentTree->AppendItem(io, "指示灯", -1, -1, new GateItemData(SW_LED));
 
+    // 自定义元件分支:一个"新建"入口,以后每定义一个就往这里挂一个节点
+    customRootItem = componentTree->AppendItem(root, "自定义元件");
+    componentTree->AppendItem(customRootItem, "＋ 新建自定义元件...",
+                              -1, -1, new GateItemData(GATE_AND, -1, true));
+
     componentTree->Expand(root);
     componentTree->Expand(gates);
+    componentTree->Expand(customRootItem);
 
     // 点击树节点 → 告诉画布"接下来要放这种元件"
     componentTree->Bind(wxEVT_TREE_SEL_CHANGED, &MyFrame::OnTreeSelect, this);
@@ -183,12 +191,14 @@ void MyFrame::CreateClientArea()
     canvas = new DrawingCanvas(this);
 
     // ---------- 右:属性表 ----------
-    propertyList = new wxListCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(220, -1),
+    propertyList = new wxListCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(230, -1),
                                   wxLC_REPORT | wxLC_SINGLE_SEL);
-    propertyList->InsertColumn(0, "属性", wxLIST_FORMAT_LEFT, 100);
-    propertyList->InsertColumn(1, "值", wxLIST_FORMAT_LEFT, 110);
-    long row = propertyList->InsertItem(0, "名称");
-    propertyList->SetItem(row, 1, "(未选中元件)");
+    propertyList->InsertColumn(0, "属性", wxLIST_FORMAT_LEFT, 90);
+    propertyList->InsertColumn(1, "值", wxLIST_FORMAT_LEFT, 130);
+
+    // 画布上选中/改动元件时,回调这里刷新属性表
+    canvas->SetSelectionCallback([this]() { RefreshPropertyTable(); });
+    RefreshPropertyTable();
 
     // ---------- 用 sizer 把三块拼起来 ----------
     // Add(控件, 比例, 样式):比例 0 = 保持自己的固定宽度,比例 1 = 分走所有剩余空间
@@ -209,6 +219,81 @@ void MyFrame::CreateStatusBar()
     SetStatusWidths(2, widths);
     SetStatusText("就绪", 0);
     SetStatusText("工具：无", 1);
+}
+
+// ================================================================
+// 属性表:显示当前选中元件的属性(没选中就显示提示)
+// ================================================================
+void MyFrame::RefreshPropertyTable()
+{
+    propertyList->DeleteAllItems();          // 每次全部重建,行数不固定也不怕
+    const Component* c = canvas->GetSelected();
+    if (!c) {
+        long row = propertyList->InsertItem(0, "选中");
+        propertyList->SetItem(row, 1, "(未选中元件)：点画布上的元件查看");
+        return;
+    }
+
+    auto addRow = [this](const wxString& k, const wxString& v) {
+        long r = propertyList->InsertItem(propertyList->GetItemCount(), k);
+        propertyList->SetItem(r, 1, v);
+    };
+
+    addRow("名称", wxString::Format("U%d", c->id));
+    addRow("类型", (c->type == GATE_CUSTOM)
+                            ? wxString::Format("自定义(%s)", c->customName)
+                            : GateTypeName(c->type));
+    addRow("位置", wxString::Format("(%d, %d)", c->x, c->y));
+
+    if (c->type == GATE_CUSTOM) {
+        // 真值表拆成四行显示,最直观:每种输入组合对应什么输出
+        const char* combos[4] = { "真值 00", "真值 01", "真值 10", "真值 11" };
+        for (int i = 0; i < 4; i++)
+            addRow(combos[i], ((c->truth >> i) & 1) ? "输出 1" : "输出 0");
+    }
+
+    if (c->type == SW_INPUT)
+        addRow("状态", c->state ? "开(1)" : "关(0)");
+    else if (c->type == SW_LED)
+        addRow("状态", canvas->IsSimRunning()
+                                ? (canvas->GetPinValue(c->id, 0) ? "亮(1)" : "灭(0)")
+                                : "未仿真");
+    else
+        addRow("输出", canvas->IsSimRunning()
+                                ? wxString::Format("%d", canvas->GetOutputValue(c->id))
+                                : "未仿真");
+}
+
+// ================================================================
+// 自定义元件:弹对话框→用户填名字勾真值表
+// →存进 customDefs →挂到树上(以后可反复放置)
+// ================================================================
+void MyFrame::DefineCustomGate()
+{
+    // 预填上一个定义,方便"改改再做一个新的"
+    wxString defName = wxString::Format("MYGATE%d", (int)customDefs.size() + 1);
+    int defTruth = 0;
+    if (customDefs.size() > 0) {
+        defName = customDefs.back().name + "2";
+        defTruth = customDefs.back().truth;
+    }
+
+    CustomGateDialog dlg(this, defName, defTruth);
+    if (dlg.ShowModal() != wxID_OK) return;
+
+    CustomDef def;
+    def.name = dlg.GetGateName();
+    def.name.Trim(true).Trim(false);        // 去掉首尾空格
+    if (def.name.empty())
+        def.name = wxString::Format("自定义%d", (int)customDefs.size() + 1);
+    def.truth = dlg.GetTruth();
+    customDefs.push_back(def);
+
+    wxTreeItemId item = componentTree->AppendItem(customRootItem, def.name, -1, -1,
+        new GateItemData(GATE_CUSTOM, (int)customDefs.size() - 1));
+    componentTree->Expand(customRootItem);
+    componentTree->SelectItem(item);   // 选中→触发 OnTreeSelect→进入放置模式
+    SetStatusText(wxString::Format("自定义元件「%s」已定义,点击画布放置", def.name), 1);
 }
 
 // ================================================================
@@ -278,11 +363,11 @@ void MyFrame::OnImportNetlist(wxCommandEvent&)
     else
         SetStatusText("导入失败!");
 }
-void MyFrame::OnUndo(wxCommandEvent&)         { SetStatusText("撤销"); }
-void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText("重做"); }
-void MyFrame::OnCut(wxCommandEvent&)          { SetStatusText("剪切"); }
-void MyFrame::OnCopy(wxCommandEvent&)         { SetStatusText("复制"); }
-void MyFrame::OnPaste(wxCommandEvent&)        { SetStatusText("粘贴"); }
+void MyFrame::OnUndo(wxCommandEvent&)         { SetStatusText(canvas->Undo() ? "已撤销" : "没有可撤销的操作"); }
+void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText(canvas->Redo() ? "已重做" : "没有可重做的操作"); }
+void MyFrame::OnCut(wxCommandEvent&)          { canvas->CutSelected(); SetStatusText("已剪切"); }
+void MyFrame::OnCopy(wxCommandEvent&)         { canvas->CopySelected(); SetStatusText("已复制"); }
+void MyFrame::OnPaste(wxCommandEvent&)        { canvas->PasteClipboard(); SetStatusText("已粘贴"); }
 void MyFrame::OnDelete(wxCommandEvent&)       { canvas->DeleteSelected(); SetStatusText("删除选中元件"); }
 void MyFrame::OnSimulateStart(wxCommandEvent&){ canvas->StartSim(); SetStatusText("仿真运行中:点击开关切换状态"); }
 void MyFrame::OnSimulateStop(wxCommandEvent&) { canvas->StopSim(); SetStatusText("仿真已停止"); }
@@ -291,6 +376,7 @@ void MyFrame::OnAbout(wxCommandEvent&)
     wxMessageBox("工业软件创新训练 I\n电路原理图编辑器\n\n版本 0.1",
                  "关于", wxOK | wxICON_INFORMATION, this);
 }
+void MyFrame::OnCustomGate(wxCommandEvent&){ DefineCustomGate(); }
 void MyFrame::OnExit(wxCommandEvent&)         { Close(true); }
 
 // 打开文件(菜单和启动参数共用)
@@ -309,12 +395,28 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
 {
     GateItemData* data = (GateItemData*)componentTree->GetItemData(e.GetItem());
     if (!data) {
-        SetStatusText("该元件还没实现,先试试基本门电路", 1);
+        // 没挂数据的节点 = 分支节点(例如"基本门电路"),它们只能展开不能放置
+        SetStatusText("请展开分支选择具体元件", 1);
+        return;
+    }
+
+    // 点了"新建自定义元件...":弹对话框让用户定义
+    if (data->defineNew) {
+        DefineCustomGate();
+        return;
+    }
+
+    // 点了已定义的自定义元件:进入放置模式
+    if (data->type == GATE_CUSTOM && data->customIdx >= 0 && data->customIdx < (int)customDefs.size()) {
+        const CustomDef& def = customDefs[data->customIdx];
+        canvas->SetCustomPlace(def.name, def.truth);
+        SetStatusText("放置自定义元件：" + def.name + ",点击画布放置", 1);
         return;
     }
 
     canvas->SetPlaceType(data->type);
-    wxString name[] = { "与门", "或门", "非门", "异或门", "与非门", "或非门", "开关", "指示灯" };
+    wxString name[] = { "与门", "或门", "非门", "异或门", "与非门", "或非门",
+                        "自定义", "开关", "指示灯" };
     SetStatusText("放置:" + name[data->type] + ",点击画布放置", 1);
 }
 

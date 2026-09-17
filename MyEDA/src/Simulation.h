@@ -54,6 +54,11 @@ inline std::map<int,int> SimulateCircuit(const wxVector<Component>& comps,
             else if (c.type == GATE_XOR) res = v0 ^ in(c, 1);
             else if (c.type == GATE_NAND) res = !(v0 & in(c, 1));
             else if (c.type == GATE_NOR)  res = !(v0 | in(c, 1));
+            else if (c.type == GATE_CUSTOM) {
+                // 自定义元件:查真值表。输入组合编号 = a*2+b,取 truth 的对应二进制位
+                int idx = v0 * 2 + in(c, 1);
+                res = (c.truth >> idx) & 1;
+            }
             else /* GATE_NOT */          res = !v0;
             out[c.id] = res;
         }

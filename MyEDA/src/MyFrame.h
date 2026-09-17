@@ -3,6 +3,7 @@
 #include <wx/treectrl.h>   // wxTreeCtrl 树控件
 #include <wx/listctrl.h>   // wxListCtrl 列表/表格控件
 #include "DrawingCanvas.h"
+#include "CustomDialog.h"  // 自定义元件对话框
 
 // ============ 菜单 ID ============
 enum {
@@ -22,6 +23,7 @@ enum {
     ID_MENU_SIMULATE_STOP,
     ID_MENU_ABOUT,
     ID_MENU_RESET_VIEW,
+    ID_MENU_CUSTOM_GATE,   // 工程菜单:新建自定义元件
 };
 
 // ============ 工具栏 ID ============
@@ -49,6 +51,16 @@ private:
     void CreateStatusBar();
     void CreateClientArea();   // 中间三栏:元件库树 + 绘图区 + 属性表
 
+    // 用户自定义元件:一个定义 = 名字 + 真值表
+    struct CustomDef {
+        wxString name;
+        int truth;
+    };
+    wxVector<CustomDef> customDefs;      // 用户定义过的所有自定义元件
+    wxTreeItemId customRootItem;         // 树里"自定义元件"根节点
+    void DefineCustomGate();             // 弹出对话框让用户定义一个新元件
+    void RefreshPropertyTable();         // 属性表:显示当前选中元件的属性
+
     // 中间三栏控件
     wxTreeCtrl* componentTree;   // 左:元件库树
     DrawingCanvas* canvas;       // 中:绘图区
@@ -69,6 +81,7 @@ private:
     void OnDelete(wxCommandEvent& event);
     void OnSimulateStart(wxCommandEvent& event);
     void OnSimulateStop(wxCommandEvent& event);
+    void OnCustomGate(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
 

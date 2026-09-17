@@ -1,27 +1,30 @@
 #pragma once
 #include <wx/wx.h>
 
-// 元件类型(元件库注册表:新增自定义元件,在 4 个"注册点"各加一行——
-// ①这里的枚举 ②GateTypeName/FromName 名字表 ③DrawGate 绘制 ④SimulateCircuit 仿真逻辑)
+// 元件类型(元件库注册表:新增一种元件,在 4 个"注册点"各加一行——
+// ①这些枚举 ②GateTypeName/FromName 名字表 ③DrawGate 绘制 ④SimulateCircuit 仿真逻辑)
 enum GateType {
     GATE_AND,
     GATE_OR,
     GATE_NOT,
     GATE_XOR,
-    GATE_NAND,   // 与非 = 与门+非门(自定义扩展示例)
-    GATE_NOR,    // 或非 = 或门+非门
-    SW_INPUT,   // 开关:用鼠标点击切换 0/1,输出引脚
-    SW_LED,     // 指示灯:亮=1 灭=0,输入引脚
+    GATE_NAND,     // 与非 = 与门+非门
+    GATE_NOR,      // 或非 = 或门+非门
+    GATE_CUSTOM,   // 用户自定义元件:2 输入 1 输出,行为由真值表 truth 决定
+    SW_INPUT,      // 开关:点击切换 0/1,输出引脚
+    SW_LED,        // 指示灯:亮=1 灭=0,输入引脚
 };
 
 // 画布上的一个元件:类型 + 位置 + 编号 + 状态。
-// 以后会加引脚、连接关系等,画图/保存/网表都从这个数据出发——
-// 记住原则:数据是核心,界面只是把数据"画"出来
+// 原则:数据是核心,界面只是把数据"画"出来
 struct Component {
-    GateType type;
-    int x, y;   // 元件中心在画布上的坐标
-    int id;     // 全局编号 1,2,3...(网表里叫 U1、U2...)
-    bool state = false;   // 开关的开/关(其他元件不用)
+    GateType type = GATE_AND;
+    int x = 0, y = 0;      // 元件中心在画布上的坐标
+    int id = 0;            // 全局编号 1,2,3...(显示为 U1、U2...)
+    bool state = false;    // 开关的开/关(其他元件不用)
+    wxString customName;   // 自定义元件的名字(其他类型为空)
+    int truth = 0;         // 自定义元件真值表:bit(a*2+b) = 该输入组合下的输出
+                           //   例:NAND 的 truth = 0b0111 = 7 → (0,1,1,1)
 };
 
 // 一根连线:起点(元件编号+引脚号) → 终点(元件编号+引脚号)
@@ -31,8 +34,7 @@ struct Wire {
 };
 
 // 引脚编号约定:
-//   与门/或门/异或门/与非/或非: 0=上输入 1=下输入 2=输出
-//   非门: 0=输入 1=输出
+//   与门/或门/非门/异或/与非/或非/自定义: 多输入门 0=上输入 1=下输入 2=输出;非门 0=输入 1=输出
 //   开关/指示灯: 0(开关=输出,指示灯=输入)
 inline int GatePinCount(const Component& c) {
     if (c.type == SW_INPUT || c.type == SW_LED) return 1;
@@ -65,14 +67,22 @@ inline wxPoint GetPinPos(const Component& c, int pin) {
         if (pin == 0) return wxPoint(c.x - 16, c.y);
         return wxPoint(c.x + 19, c.y);
     }
+    if (c.type == GATE_CUSTOM) {   // 自定义元件:方框,左两入右一出
+        if (pin == 0) return wxPoint(c.x - 24, c.y - 10);
+        if (pin == 1) return wxPoint(c.x - 24, c.y + 10);
+        return wxPoint(c.x + 24, c.y);
+    }
     if (c.type == SW_INPUT)  return wxPoint(c.x + 22, c.y);   // 开关:输出在右
     return wxPoint(c.x - 20, c.y);                            // 指示灯:输入在左
 }
 
-// 给树控件挂的数据:点哪个树节点,就能查出对应哪种门
+// 给树控件挂的数据:点哪个树节点,就能查出对应哪种元件
 #include <wx/treectrl.h>
 class GateItemData : public wxTreeItemData {
 public:
-    GateItemData(GateType t) : type(t) {}
+    GateItemData(GateType t, int customIdx = -1, bool defineNew = false)
+        : type(t), customIdx(customIdx), defineNew(defineNew) {}
     GateType type;
+    int  customIdx;    // 自定义元件在"用户定义列表"里的下标
+    bool defineNew;    // true = 这个节点是"新建自定义元件…"入口
 };

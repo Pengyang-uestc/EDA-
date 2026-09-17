@@ -165,10 +165,11 @@ void MyFrame::CreateClientArea()
     componentTree->AppendItem(gates, "与门 AND", -1, -1, new GateItemData(GATE_AND));
     componentTree->AppendItem(gates, "或门 OR",  -1, -1, new GateItemData(GATE_OR));
     componentTree->AppendItem(gates, "非门 NOT", -1, -1, new GateItemData(GATE_NOT));
+    componentTree->AppendItem(gates, "异或门 XOR", -1, -1, new GateItemData(GATE_XOR));
 
     wxTreeItemId io = componentTree->AppendItem(root, "输入/输出");
-    componentTree->AppendItem(io, "开关");
-    componentTree->AppendItem(io, "指示灯");
+    componentTree->AppendItem(io, "开关", -1, -1, new GateItemData(SW_INPUT));
+    componentTree->AppendItem(io, "指示灯", -1, -1, new GateItemData(SW_LED));
 
     componentTree->Expand(root);
     componentTree->Expand(gates);
@@ -270,8 +271,8 @@ void MyFrame::OnCut(wxCommandEvent&)          { SetStatusText("剪切"); }
 void MyFrame::OnCopy(wxCommandEvent&)         { SetStatusText("复制"); }
 void MyFrame::OnPaste(wxCommandEvent&)        { SetStatusText("粘贴"); }
 void MyFrame::OnDelete(wxCommandEvent&)       { canvas->DeleteSelected(); SetStatusText("删除选中元件"); }
-void MyFrame::OnSimulateStart(wxCommandEvent&){ SetStatusText("开始仿真"); }
-void MyFrame::OnSimulateStop(wxCommandEvent&) { SetStatusText("停止仿真"); }
+void MyFrame::OnSimulateStart(wxCommandEvent&){ canvas->StartSim(); SetStatusText("仿真运行中:点击开关切换状态"); }
+void MyFrame::OnSimulateStop(wxCommandEvent&) { canvas->StopSim(); SetStatusText("仿真已停止"); }
 void MyFrame::OnAbout(wxCommandEvent&)
 {
     wxMessageBox("工业软件创新训练 I\n电路原理图编辑器\n\n版本 0.1",
@@ -300,7 +301,7 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
     }
 
     canvas->SetPlaceType(data->type);
-    wxString name[] = { "与门", "或门", "非门" };
+    wxString name[] = { "与门", "或门", "非门", "异或门", "开关", "指示灯" };
     SetStatusText("放置:" + name[data->type] + ",点击画布放置", 1);
 }
 
@@ -313,4 +314,7 @@ void MyFrame::OnToolDelete(wxCommandEvent&)   { SetStatusText("执行：删除",
 void MyFrame::OnToolAnd(wxCommandEvent&)      { canvas->SetPlaceType(GATE_AND); SetStatusText("放置：与门,点击画布放置", 1); }
 void MyFrame::OnToolOr(wxCommandEvent&)       { canvas->SetPlaceType(GATE_OR);  SetStatusText("放置：或门,点击画布放置", 1); }
 void MyFrame::OnToolNot(wxCommandEvent&)      { canvas->SetPlaceType(GATE_NOT); SetStatusText("放置：非门,点击画布放置", 1); }
-void MyFrame::OnToolSimulate(wxCommandEvent&) { SetStatusText("仿真切换", 1); }
+void MyFrame::OnToolSimulate(wxCommandEvent&) {
+    if (canvas->IsSimRunning()) { canvas->StopSim(); SetStatusText("仿真已停止"); }
+    else { canvas->StartSim(); SetStatusText("仿真运行中:点击开关切换状态"); }
+}

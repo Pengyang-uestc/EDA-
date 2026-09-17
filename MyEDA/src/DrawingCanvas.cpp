@@ -28,11 +28,15 @@ void DrawingCanvas::OnPaint(wxPaintEvent&)
             dc.DrawPoint(x, y);
 
     // 先画连线(在元件下层)
-    dc.SetPen(wxPen(*wxBLACK, 2));
     for (size_t i = 0; i < wires.size(); i++) {
         Component* a = FindById(wires[i].comp1);
         Component* b = FindById(wires[i].comp2);
         if (!a || !b) continue;
+        // 仿真中:高电位的线画红色,低电位画黑色(Logisim 风格)
+        if (simRunning && simOut[wires[i].comp1] == 1)
+            dc.SetPen(wxPen(*wxRED, 2));
+        else
+            dc.SetPen(wxPen(*wxBLACK, 2));
         dc.DrawLine(GetPinPos(*a, wires[i].pin1), GetPinPos(*b, wires[i].pin2));
     }
 
@@ -56,6 +60,17 @@ void DrawingCanvas::OnPaint(wxPaintEvent&)
 void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
 {
     SetFocus();   // 让画布获得键盘焦点,Delete 键才有效
+
+    // ----- 仿真运行中:点到开关 = 切换它的开/关,然后重算整个电路 -----
+    if (simRunning) {
+        int id = HitTest(e.GetX(), e.GetY());
+        Component* c = (id != -1) ? FindById(id) : nullptr;
+        if (c && c->type == SW_INPUT) {
+            c->state = !c->state;   // 切换!
+            RunSim();               // 电路变了,重新算一遍
+        }
+        return;
+    }
 
     // ----- 连线模式 -----
     if (wireMode) {
@@ -159,8 +174,7 @@ bool DrawingCanvas::HitPin(int mx, int my, int* compId, int* pin)
 {
     for (int i = (int)components.size() - 1; i >= 0; i--) {
         Component& c = components[i];
-        int pinCount = (c.type == GATE_NOT) ? 2 : 3;
-        for (int p = 0; p < pinCount; p++) {
+        for (int p = 0; p < GatePinCount(c); p++) {
             wxPoint pp = GetPinPos(c, p);
             int dx = mx - pp.x, dy = my - pp.y;
             if (dx * dx + dy * dy <= 9 * 9) {
@@ -192,6 +206,8 @@ void DrawingCanvas::NewDocument()
     selectedId = -1;
     wireMode = false;
     wireFromComp = -1;
+    simRunning = false;
+    simOut.clear();
     filePath = "";
     Refresh();
 }
@@ -203,6 +219,8 @@ bool DrawingCanvas::LoadFile(const wxString& path)
     selectedId = -1;       // 旧电路的选中状态全部作废
     wireMode = false;
     wireFromComp = -1;
+    simRunning = false;
+    simOut.clear();
     filePath = path;
     Refresh();
     return true;
@@ -247,8 +265,8 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
         dc.DrawLine(x - 20, y - 20, x, y - 20);
         dc.DrawLine(x - 20, y + 20, x, y + 20);
         dc.DrawArc(x, y + 20, x, y - 20, x, y);
-    } else if (c.type == GATE_OR) {
-        // 或门:用折线近似弯月形(右边凸出尖角,左边内凹)
+    } else if (c.type == GATE_OR || c.type == GATE_XOR) {
+        // 或门/异或门:折线弯月形;异或门在左边多画一条凹线
         wxPoint pts[6] = {
             wxPoint(x - 22, y - 18),   // 左上
             wxPoint(x + 8,  y - 18),   // 上边
@@ -258,14 +276,54 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
             wxPoint(x - 12, y),        // 左边中点(往右凹)
         };
         dc.DrawPolygon(6, pts);
-    } else {
+        if (c.type == GATE_XOR) {
+            // 异或门的"第二条输入线":在左边再画一条小凹折线
+            wxPoint pts2[4] = {
+                wxPoint(x - 30, y - 18),
+                wxPoint(x - 22, y - 6),
+                wxPoint(x - 22, y + 6),
+                wxPoint(x - 30, y + 18),
+            };
+            dc.DrawLines(4, pts2);
+        }
+    } else if (c.type == GATE_NOT) {
         // 非门:三角形 + 右边小圆圈
         dc.DrawLine(x - 16, y - 14, x - 16, y + 14);
         dc.DrawLine(x - 16, y - 14, x + 10, y);
         dc.DrawLine(x - 16, y + 14, x + 10, y);
         dc.DrawCircle(x + 15, y, 4);
+    } else if (c.type == SW_INPUT) {
+        // 开关:圆角方框 + "1"/"0";闭合时底色变绿
+        dc.SetBrush(c.state ? wxBrush(wxColour(144, 238, 144)) : *wxWHITE_BRUSH);
+        dc.DrawRoundedRectangle(x - 18, y - 14, 36, 28, 4);
+        dc.SetTextForeground(*wxBLACK);
+        dc.DrawText(c.state ? "1" : "0", x - 5, y - 9);
+    } else {
+        // 指示灯:圆;仿真中亮=红填充,灭=白
+        int v = simRunning ? PinSourceValue(c.id, 0) : 0;
+        dc.SetBrush((simRunning && v == 1) ? *wxRED_BRUSH : *wxWHITE_BRUSH);
+        dc.DrawCircle(x, y, 14);
+        dc.SetTextForeground(*wxBLACK);
     }
 
     // 编号标签,比如 U1
     dc.DrawText(wxString::Format("U%d", c.id), x - 12, y - 36);
+}
+
+// ================================================================
+// 仿真:跑一遍并重画
+// ================================================================
+void DrawingCanvas::RunSim()
+{
+    simOut = SimulateCircuit(components, wires);
+    Refresh();
+}
+
+// 某输入引脚连到的来源输出值(画灯的亮灭用)
+int DrawingCanvas::PinSourceValue(int compId, int pin)
+{
+    int src = FindSource(wires, compId, pin);
+    if (src < 0) return 0;
+    auto it = simOut.find(src);
+    return (it != simOut.end()) ? it->second : 0;
 }

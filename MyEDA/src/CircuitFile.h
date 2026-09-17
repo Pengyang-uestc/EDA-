@@ -16,11 +16,17 @@
 inline wxString GateTypeName(GateType t) {
     if (t == GATE_AND) return "AND";
     if (t == GATE_OR)  return "OR";
-    return "NOT";
+    if (t == GATE_NOT) return "NOT";
+    if (t == GATE_XOR) return "XOR";
+    if (t == SW_INPUT) return "SW";
+    return "LED";
 }
 inline GateType GateTypeFromName(const std::string& s) {
     if (s == "OR")  return GATE_OR;
     if (s == "NOT") return GATE_NOT;
+    if (s == "XOR") return GATE_XOR;
+    if (s == "SW")  return SW_INPUT;
+    if (s == "LED") return SW_LED;
     return GATE_AND;
 }
 
@@ -30,8 +36,8 @@ inline wxString CircuitToJson(const wxVector<Component>& comps, const wxVector<W
     wxString s = "{\n  \"components\": [\n";
     for (size_t i = 0; i < comps.size(); i++) {
         const Component& c = comps[i];
-        s += wxString::Format("    {\"id\":%d,\"type\":\"%s\",\"x\":%d,\"y\":%d}%s\n",
-                              c.id, GateTypeName(c.type), c.x, c.y,
+        s += wxString::Format("    {\"id\":%d,\"type\":\"%s\",\"x\":%d,\"y\":%d,\"state\":%d}%s\n",
+                              c.id, GateTypeName(c.type), c.x, c.y, c.state ? 1 : 0,
                               (i + 1 < comps.size()) ? "," : "");
     }
     s += "  ],\n  \"wires\": [\n";
@@ -52,7 +58,7 @@ inline bool JsonToCircuit(const std::string& text,
     comps.clear();
     wires.clear();
 
-    std::regex compRe("\\{\"id\":(\\d+),\"type\":\"(AND|OR|NOT)\",\"x\":(-?\\d+),\"y\":(-?\\d+)\\}");
+    std::regex compRe("\\{\"id\":(\\d+),\"type\":\"(AND|OR|NOT|XOR|SW|LED)\",\"x\":(-?\\d+),\"y\":(-?\\d+),\"state\":(\\d)\\}");
     std::regex wireRe("\\[(\\d+),(\\d+),(\\d+),(\\d+)\\]");
     auto end = std::sregex_iterator();
 
@@ -63,6 +69,7 @@ inline bool JsonToCircuit(const std::string& text,
         c.type = GateTypeFromName((*it)[2]);
         c.x    = std::stoi((*it)[3]);
         c.y    = std::stoi((*it)[4]);
+        c.state = ((*it)[5] == "1");
         comps.push_back(c);
         if (c.id > maxId) maxId = c.id;
     }

@@ -4,6 +4,7 @@
 #include "Component.h"
 #include "CircuitFile.h"
 #include "NetlistExport.h"
+#include "Simulation.h"
 
 // 绘图区:显示网格和所有已放置的元件。
 // 交互约定:在左边树/工具栏选中元件类型 → 在这里点一下就放一个;
@@ -25,6 +26,11 @@ public:
     // 导出 KiCad 网表(任务5)
     bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
 
+    // 逻辑仿真(任务6)
+    void StartSim() { simRunning = true; RunSim(); }
+    void StopSim()  { simRunning = false; Refresh(); }
+    bool IsSimRunning() const { return simRunning; }
+
 private:
     void OnPaint(wxPaintEvent&);
     void OnLeftDown(wxMouseEvent&);
@@ -36,6 +42,8 @@ private:
     bool HitPin(int mx, int my, int* compId, int* pin);   // 连线模式:命中的引脚
     Component* FindById(int id);           // 按编号找元件,找不到返回 nullptr
     void DrawGate(wxDC& dc, const Component& c);
+    void RunSim();                         // 跑一遍仿真并重画
+    int  PinSourceValue(int compId, int pin);   // 某输入引脚连到的来源输出值
 
     wxVector<Component> components;   // 画布上所有元件(核心数据!)
     wxVector<Wire> wires;             // 所有连线
@@ -44,6 +52,10 @@ private:
     int selectedId = -1;              // 当前选中的元件编号,-1 = 没选中
     int dragOffX = 0, dragOffY = 0;   // 拖动时鼠标相对元件中心的偏移
     bool dragging = false;            // 正在拖动?
+
+    // 仿真状态
+    bool simRunning = false;          // 仿真是否运行中
+    std::map<int,int> simOut;         // 每个元件的输出值(仿真结果)
 
     // 连线模式状态:点第一个引脚记下起点,再点第二个引脚完成连线
     bool wireMode = false;

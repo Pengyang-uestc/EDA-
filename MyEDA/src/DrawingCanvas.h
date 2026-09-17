@@ -2,6 +2,7 @@
 #include <wx/wx.h>
 #include <wx/vector.h>
 #include "Component.h"
+#include "CircuitFile.h"
 
 // 绘图区:显示网格和所有已放置的元件。
 // 交互约定:在左边树/工具栏选中元件类型 → 在这里点一下就放一个;
@@ -13,6 +14,12 @@ public:
     void SetPlaceType(GateType t) { placeType = t; wireMode = false; }  // 设置当前要放的元件(会退出连线模式)
     void SetWireMode()             { wireMode = true; wireFromComp = -1; }  // 进入连线模式
     void DeleteSelected();                             // 删除选中元件(编辑菜单/Delete键调用)
+
+    // 保存/打开:真正干活的是 CircuitFile.h 里的函数,这里只负责"拿数据"和"换数据"
+    bool SaveFile(const wxString& path);
+    bool LoadFile(const wxString& path);
+    void NewDocument();                                // 新建:清空一切,回到初始状态
+    const wxString& GetFilePath() const { return filePath; }
 
 private:
     void OnPaint(wxPaintEvent&);
@@ -38,4 +45,6 @@ private:
     bool wireMode = false;
     int  wireFromComp = -1, wireFromPin = -1;   // 已选的起点引脚(-1=还没选)
     wxPoint wireEnd{ 0, 0 };                    // 橡皮筋终点(鼠标当前位置)
+
+    wxString filePath;                          // 当前电路对应的文件(空=还没保存过)
 };

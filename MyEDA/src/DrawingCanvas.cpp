@@ -174,6 +174,41 @@ bool DrawingCanvas::HitPin(int mx, int my, int* compId, int* pin)
 }
 
 // ================================================================
+// 保存/打开:数据在画布上,文件读写交给 CircuitFile.h
+// ================================================================
+bool DrawingCanvas::SaveFile(const wxString& path)
+{
+    if (!SaveCircuit(path, components, wires))
+        return false;
+    filePath = path;   // 记住存到哪了,下次 Ctrl+S 直接覆盖
+    return true;
+}
+
+void DrawingCanvas::NewDocument()
+{
+    components.clear();
+    wires.clear();
+    nextId = 1;
+    selectedId = -1;
+    wireMode = false;
+    wireFromComp = -1;
+    filePath = "";
+    Refresh();
+}
+
+bool DrawingCanvas::LoadFile(const wxString& path)
+{
+    if (!LoadCircuit(path, components, wires, nextId))
+        return false;
+    selectedId = -1;       // 旧电路的选中状态全部作废
+    wireMode = false;
+    wireFromComp = -1;
+    filePath = path;
+    Refresh();
+    return true;
+}
+
+// ================================================================
 // 命中测试:这个点落在哪个元件上?(用包围盒粗略判断)
 // ================================================================
 int DrawingCanvas::HitTest(int mx, int my)

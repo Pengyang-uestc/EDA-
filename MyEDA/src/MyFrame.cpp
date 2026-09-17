@@ -211,10 +211,47 @@ void MyFrame::CreateStatusBar()
 // ================================================================
 // 菜单事件处理
 // ================================================================
-void MyFrame::OnNew(wxCommandEvent&)          { SetStatusText("新建电路"); }
-void MyFrame::OnOpen(wxCommandEvent&)         { SetStatusText("打开文件"); }
-void MyFrame::OnSave(wxCommandEvent&)         { SetStatusText("保存文件"); }
-void MyFrame::OnSaveAs(wxCommandEvent&)       { SetStatusText("另存为"); }
+void MyFrame::OnNew(wxCommandEvent&)
+{
+    // 新建 = 清空画布。目前没有“未保存提醒”,大家自己注意先存盘
+    canvas->NewDocument();
+    SetStatusText("已新建(画布清空)");
+}
+
+void MyFrame::OnOpen(wxCommandEvent&)
+{
+    wxFileDialog dlg(this, "打开电路文件", wxGetCwd(), "",
+                     "MyEDA 电路文件 (*.eda)|*.eda",
+                     wxFD_OPEN | wxFD_FILE_MUST_EXIST);
+    if (dlg.ShowModal() != wxID_OK) return;   // 用户点了取消
+    OpenPath(dlg.GetPath());
+}
+
+void MyFrame::OnSave(wxCommandEvent&)
+{
+    // 标准做法:从没存过 → 转到另存为;存过 → 直接覆盖
+    if (canvas->GetFilePath().empty()) {
+        wxCommandEvent e;
+        OnSaveAs(e);
+        return;
+    }
+    if (canvas->SaveFile(canvas->GetFilePath()))
+        SetStatusText("已保存:" + canvas->GetFilePath());
+    else
+        SetStatusText("保存失败!");
+}
+
+void MyFrame::OnSaveAs(wxCommandEvent&)
+{
+    wxFileDialog dlg(this, "另存电路文件", wxGetCwd(), "未命名.eda",
+                     "MyEDA 电路文件 (*.eda)|*.eda",
+                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dlg.ShowModal() != wxID_OK) return;
+    if (canvas->SaveFile(dlg.GetPath()))
+        SetStatusText("已保存:" + dlg.GetPath());
+    else
+        SetStatusText("保存失败!");
+}
 void MyFrame::OnExportNetlist(wxCommandEvent&){ SetStatusText("导出网表"); }
 void MyFrame::OnImportNetlist(wxCommandEvent&){ SetStatusText("导入网表"); }
 void MyFrame::OnUndo(wxCommandEvent&)         { SetStatusText("撤销"); }
@@ -231,6 +268,15 @@ void MyFrame::OnAbout(wxCommandEvent&)
                  "关于", wxOK | wxICON_INFORMATION, this);
 }
 void MyFrame::OnExit(wxCommandEvent&)         { Close(true); }
+
+// 打开文件(菜单和启动参数共用)
+void MyFrame::OpenPath(const wxString& path)
+{
+    if (canvas->LoadFile(path))
+        SetStatusText("已打开:" + path);
+    else
+        SetStatusText("打开失败:" + path);
+}
 
 // ================================================================
 // 元件库树:点击节点 → 画布切换到对应的放置工具

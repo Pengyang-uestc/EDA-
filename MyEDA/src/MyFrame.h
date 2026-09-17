@@ -39,6 +39,9 @@ class MyFrame : public wxFrame {
 public:
     MyFrame(const wxString& title);
 
+    // 打开指定文件(菜单"打开"和启动参数共用)
+    void OpenPath(const wxString& path);
+
 private:
     // 创建函数
     void CreateMenuBar();

@@ -252,7 +252,7 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
 // 工具栏事件处理
 // ================================================================
 void MyFrame::OnToolSelect(wxCommandEvent&)   { SetStatusText("当前工具：选择", 1); }
-void MyFrame::OnToolWire(wxCommandEvent&)     { SetStatusText("当前工具：连线", 1); }
+void MyFrame::OnToolWire(wxCommandEvent&)     { canvas->SetWireMode(); SetStatusText("连线:先点起点引脚,再点终点引脚", 1); }
 void MyFrame::OnToolDelete(wxCommandEvent&)   { SetStatusText("执行：删除", 1); }
 void MyFrame::OnToolAnd(wxCommandEvent&)      { canvas->SetPlaceType(GATE_AND); SetStatusText("放置：与门,点击画布放置", 1); }
 void MyFrame::OnToolOr(wxCommandEvent&)       { canvas->SetPlaceType(GATE_OR);  SetStatusText("放置：或门,点击画布放置", 1); }

@@ -27,18 +27,57 @@ void DrawingCanvas::OnPaint(wxPaintEvent&)
         for (int y = 0; y < size.y; y += 25)
             dc.DrawPoint(x, y);
 
-    // 把每个元件画出来
+    // 先画连线(在元件下层)
+    dc.SetPen(wxPen(*wxBLACK, 2));
+    for (size_t i = 0; i < wires.size(); i++) {
+        Component* a = FindById(wires[i].comp1);
+        Component* b = FindById(wires[i].comp2);
+        if (!a || !b) continue;
+        dc.DrawLine(GetPinPos(*a, wires[i].pin1), GetPinPos(*b, wires[i].pin2));
+    }
+
+    // 连线模式下的橡皮筋预览:灰色虚线跟着鼠标走
+    if (wireMode && wireFromComp != -1) {
+        Component* a = FindById(wireFromComp);
+        if (a) {
+            dc.SetPen(wxPen(*wxLIGHT_GREY, 1, wxPENSTYLE_SHORT_DASH));
+            dc.DrawLine(GetPinPos(*a, wireFromPin), wireEnd);
+        }
+    }
+
+    // 再画元件
     for (size_t i = 0; i < components.size(); i++)
         DrawGate(dc, components[i]);
 }
 
 // ================================================================
-// 鼠标左键按下:点中元件=选中准备拖动;点空白=放置新元件
+// 鼠标左键按下:连线模式走引脚逻辑;否则 点中元件=选中拖动,点空白=放置
 // ================================================================
 void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
 {
     SetFocus();   // 让画布获得键盘焦点,Delete 键才有效
 
+    // ----- 连线模式 -----
+    if (wireMode) {
+        int cid, pin;
+        if (!HitPin(e.GetX(), e.GetY(), &cid, &pin))
+            return;   // 没点到引脚,忽略(不退出连线模式)
+
+        if (wireFromComp == -1) {
+            // 第一下:选定起点引脚
+            wireFromComp = cid;
+            wireFromPin = pin;
+        } else {
+            // 第二下:完成连线,存入数据
+            Wire w = { wireFromComp, wireFromPin, cid, pin };
+            wires.push_back(w);
+            wireFromComp = -1;   // 可以继续连下一根
+        }
+        Refresh();
+        return;
+    }
+
+    // ----- 普通模式 -----
     int id = HitTest(e.GetX(), e.GetY());
     if (id != -1) {
         // 点中已有元件:选中 + 记住鼠标相对元件中心的偏移,开始拖动
@@ -57,9 +96,14 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
     Refresh();   // 通知系统重画(触发 OnPaint)
 }
 
-// 拖动中:元件跟着鼠标走
+// 拖动中:元件跟着鼠标走;连线模式:橡皮筋终点跟着鼠标走
 void DrawingCanvas::OnMotion(wxMouseEvent& e)
 {
+    if (wireMode && wireFromComp != -1) {
+        wireEnd = wxPoint(e.GetX(), e.GetY());
+        Refresh();
+        return;
+    }
     if (!dragging)
         return;
     Component* c = FindById(selectedId);
@@ -88,18 +132,45 @@ void DrawingCanvas::OnKeyDown(wxKeyEvent& e)
 }
 
 // ================================================================
-// 删除选中元件
+// 删除选中元件(它身上的连线也要一起删,不然连线会"悬空"指向不存在的元件)
 // ================================================================
 void DrawingCanvas::DeleteSelected()
 {
     for (size_t i = 0; i < components.size(); i++) {
         if (components[i].id == selectedId) {
             components.erase(components.begin() + i);
+
+            // 从后往前删连线,避免删除时下标错位
+            for (int j = (int)wires.size() - 1; j >= 0; j--) {
+                if (wires[j].comp1 == selectedId || wires[j].comp2 == selectedId)
+                    wires.erase(wires.begin() + j);
+            }
             selectedId = -1;
             Refresh();
             return;
         }
     }
+}
+
+// ================================================================
+// 命中测试:这个点落在哪个引脚上?(引脚周围 9 像素内算命中)
+// ================================================================
+bool DrawingCanvas::HitPin(int mx, int my, int* compId, int* pin)
+{
+    for (int i = (int)components.size() - 1; i >= 0; i--) {
+        Component& c = components[i];
+        int pinCount = (c.type == GATE_NOT) ? 2 : 3;
+        for (int p = 0; p < pinCount; p++) {
+            wxPoint pp = GetPinPos(c, p);
+            int dx = mx - pp.x, dy = my - pp.y;
+            if (dx * dx + dy * dy <= 9 * 9) {
+                *compId = c.id;
+                *pin = p;
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // ================================================================

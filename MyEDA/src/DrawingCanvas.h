@@ -10,7 +10,8 @@ class DrawingCanvas : public wxPanel {
 public:
     DrawingCanvas(wxWindow* parent);
 
-    void SetPlaceType(GateType t) { placeType = t; }   // 设置当前要放的元件
+    void SetPlaceType(GateType t) { placeType = t; wireMode = false; }  // 设置当前要放的元件(会退出连线模式)
+    void SetWireMode()             { wireMode = true; wireFromComp = -1; }  // 进入连线模式
     void DeleteSelected();                             // 删除选中元件(编辑菜单/Delete键调用)
 
 private:
@@ -21,13 +22,20 @@ private:
     void OnKeyDown(wxKeyEvent&);
 
     int  HitTest(int mx, int my);          // 返回点中的元件编号,没点中返回 -1
+    bool HitPin(int mx, int my, int* compId, int* pin);   // 连线模式:命中的引脚
     Component* FindById(int id);           // 按编号找元件,找不到返回 nullptr
     void DrawGate(wxDC& dc, const Component& c);
 
     wxVector<Component> components;   // 画布上所有元件(核心数据!)
+    wxVector<Wire> wires;             // 所有连线
     GateType placeType = GATE_AND;    // 当前放置工具
     int nextId = 1;                   // 下一个元件的编号
     int selectedId = -1;              // 当前选中的元件编号,-1 = 没选中
     int dragOffX = 0, dragOffY = 0;   // 拖动时鼠标相对元件中心的偏移
     bool dragging = false;            // 正在拖动?
+
+    // 连线模式状态:点第一个引脚记下起点,再点第二个引脚完成连线
+    bool wireMode = false;
+    int  wireFromComp = -1, wireFromPin = -1;   // 已选的起点引脚(-1=还没选)
+    wxPoint wireEnd{ 0, 0 };                    // 橡皮筋终点(鼠标当前位置)
 };

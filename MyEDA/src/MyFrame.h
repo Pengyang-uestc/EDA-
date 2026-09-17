@@ -1,5 +1,8 @@
 #pragma once
 #include <wx/wx.h>
+#include <wx/treectrl.h>   // wxTreeCtrl 树控件
+#include <wx/listctrl.h>   // wxListCtrl 列表/表格控件
+#include "DrawingCanvas.h"
 
 // ============ 菜单 ID ============
 enum {
@@ -18,6 +21,7 @@ enum {
     ID_MENU_SIMULATE_START,
     ID_MENU_SIMULATE_STOP,
     ID_MENU_ABOUT,
+    ID_MENU_RESET_VIEW,
 };
 
 // ============ 工具栏 ID ============
@@ -40,6 +44,12 @@ private:
     void CreateMenuBar();
     void CreateToolBar();
     void CreateStatusBar();
+    void CreateClientArea();   // 中间三栏:元件库树 + 绘图区 + 属性表
+
+    // 中间三栏控件
+    wxTreeCtrl* componentTree;   // 左:元件库树
+    DrawingCanvas* canvas;       // 中:绘图区
+    wxListCtrl* propertyList;    // 右:属性表
 
     // 事件处理函数
     void OnNew(wxCommandEvent& event);

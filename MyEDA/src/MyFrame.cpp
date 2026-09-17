@@ -8,6 +8,7 @@ MyFrame::MyFrame(const wxString& title)
     CreateMenuBar();
     CreateToolBar();
     CreateStatusBar();
+    CreateClientArea();
 
     SetStatusText("就绪");
 
@@ -84,7 +85,7 @@ void MyFrame::CreateMenuBar()
 
     // ---------- 窗口 ----------
     wxMenu* windowMenu = new wxMenu();
-    windowMenu->Append(wxID_ANY, "复位视图(&R)", "复位画布视图");
+    windowMenu->Append(ID_MENU_RESET_VIEW, "复位视图(&R)", "复位画布视图");
     menuBar->Append(windowMenu, "窗口(&W)");
 
     // ---------- 帮助 ----------
@@ -147,6 +148,48 @@ void MyFrame::CreateToolBar()
     toolBar->AddTool(ID_TOOL_SIMULATE, "仿真", bmpSimulate, "开始/停止仿真");
 
     toolBar->Realize();
+}
+
+// ================================================================
+// 创建中间三栏:元件库树 + 绘图区 + 属性表
+// ================================================================
+void MyFrame::CreateClientArea()
+{
+    // ---------- 左:元件库树 ----------
+    componentTree = new wxTreeCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(200, -1),
+                                   wxTR_HAS_BUTTONS | wxTR_LINES_AT_ROOT);
+    wxTreeItemId root = componentTree->AddRoot("元件库");
+
+    wxTreeItemId gates = componentTree->AppendItem(root, "基本门电路");
+    componentTree->AppendItem(gates, "与门 AND");
+    componentTree->AppendItem(gates, "或门 OR");
+    componentTree->AppendItem(gates, "非门 NOT");
+
+    wxTreeItemId io = componentTree->AppendItem(root, "输入/输出");
+    componentTree->AppendItem(io, "开关");
+    componentTree->AppendItem(io, "指示灯");
+
+    componentTree->Expand(root);
+    componentTree->Expand(gates);
+
+    // ---------- 中:绘图区(自定义控件) ----------
+    canvas = new DrawingCanvas(this);
+
+    // ---------- 右:属性表 ----------
+    propertyList = new wxListCtrl(this, wxID_ANY, wxDefaultPosition, wxSize(220, -1),
+                                  wxLC_REPORT | wxLC_SINGLE_SEL);
+    propertyList->InsertColumn(0, "属性", wxLIST_FORMAT_LEFT, 100);
+    propertyList->InsertColumn(1, "值", wxLIST_FORMAT_LEFT, 110);
+    long row = propertyList->InsertItem(0, "名称");
+    propertyList->SetItem(row, 1, "(未选中元件)");
+
+    // ---------- 用 sizer 把三块拼起来 ----------
+    // Add(控件, 比例, 样式):比例 0 = 保持自己的固定宽度,比例 1 = 分走所有剩余空间
+    wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
+    sizer->Add(componentTree, 0, wxEXPAND);
+    sizer->Add(canvas,         1, wxEXPAND);
+    sizer->Add(propertyList,   0, wxEXPAND);
+    SetSizer(sizer);
 }
 
 // ================================================================

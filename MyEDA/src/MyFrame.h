@@ -25,6 +25,7 @@ enum {
     ID_MENU_RESET_VIEW,
     ID_MENU_CUSTOM_GATE,   // 工程菜单:新建自定义元件
     ID_MENU_EXPORT_SCH,    // 文件菜单:导出 KiCad 原理图
+    ID_MENU_MANAGE_CUSTOM, // 工程菜单:管理自定义元件
 };
 
 // ============ 工具栏 ID ============
@@ -52,15 +53,15 @@ private:
     void CreateStatusBar();
     void CreateClientArea();   // 中间三栏:元件库树 + 绘图区 + 属性表
 
-    // 用户自定义元件:一个定义 = 名字 + 真值表
-    struct CustomDef {
-        wxString name;
-        int truth;
-    };
+    // 用户自定义元件(定义类型 CustomDef 在 CustomDialog.h 里,主窗口和对话框共用)
     wxVector<CustomDef> customDefs;      // 用户定义过的所有自定义元件
     wxTreeItemId customRootItem;         // 树里"自定义元件"根节点
     void DefineCustomGate();             // 弹出对话框让用户定义一个新元件
+    void ManageCustomGates();            // 管理(编辑/删除)已定义的自定义元件
+    void RebuildCustomTree();            // 重建树上的"自定义元件"分支(索引要重排)
     void RefreshPropertyTable();         // 属性表:显示当前选中元件的属性
+    void UpdateTitle();                  // 标题栏:显示文件名和"有未保存修改"星号
+    bool ConfirmDiscardChanges();        // 关闭/新建/打开前:问用户要不要先存盘
 
     // 中间三栏控件
     wxTreeCtrl* componentTree;   // 左:元件库树
@@ -84,6 +85,8 @@ private:
     void OnSimulateStart(wxCommandEvent& event);
     void OnSimulateStop(wxCommandEvent& event);
     void OnCustomGate(wxCommandEvent& event);
+    void OnManageCustom(wxCommandEvent& event);
+    void OnClose(wxCloseEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
 

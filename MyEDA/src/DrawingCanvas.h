@@ -32,6 +32,17 @@ public:
     void NewDocument();                                // 新建:清空一切,回到初始状态
     const wxString& GetFilePath() const { return filePath; }
 
+    // "有未保存的修改"标记:关闭/新建/打开前用它提醒用户存盘
+    bool IsDirty() const { return dirty; }
+
+    // 自定义元件库(属于文档数据:跟着电路一起存盘)
+    wxVector<CustomDef>& CustomDefs() { return customDefs; }
+    void RebuildCustomTreeRequested() {}   // 占位:重建树由主窗口负责
+
+    // 自定义元件的管理(配合主窗口的"管理自定义元件"对话框)
+    int  CountCustomInstances(const wxString& name) const;
+    void UpdateCustomInstances(const wxString& oldName, const wxString& newName, int truth);
+
     // 导出/导入 KiCad 网表(任务5)
     bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
     // 导出 KiCad 原理图(.kicad_sch):在 KiCad 里打开后按 F8 即可"从原理图更新 PCB"
@@ -83,6 +94,7 @@ private:
     void RestoreSnapshot(const wxString& snap);
 
     wxVector<Component> components;   // 画布上所有元件(核心数据!)
+    wxVector<CustomDef> customDefs;   // 用户自定义元件的库(名字+真值表)
     wxVector<Wire> wires;             // 所有连线
     GateType placeType = GATE_AND;    // 当前放置工具
     wxString placeCustomName;         // 当前要放置的自定义元件名
@@ -111,5 +123,6 @@ private:
     bool hasClipboard = false;
 
     wxString filePath;                          // 当前电路对应的文件(空=还没保存过)
+    bool dirty = false;                         // 有未保存的修改?
     std::function<void()> onSelection;          // 选中/内容变化时通知外面刷新属性表
 };

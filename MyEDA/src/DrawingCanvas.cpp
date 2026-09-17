@@ -50,6 +50,7 @@ bool DrawingCanvas::Undo()
     wxString snap = undoStack.back();
     undoStack.pop_back();
     RestoreSnapshot(snap);
+    dirty = true;
     return true;
 }
 
@@ -60,6 +61,7 @@ bool DrawingCanvas::Redo()
     wxString snap = redoStack.back();
     redoStack.pop_back();
     RestoreSnapshot(snap);
+    dirty = true;
     return true;
 }
 
@@ -90,6 +92,7 @@ void DrawingCanvas::PasteClipboard()
     c.y += 30;
     components.push_back(c);
     selectedId = c.id;      // 粘贴出来的直接选中,方便接着拖
+    dirty = true;
     NotifyChanged();
 }
 
@@ -156,6 +159,7 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
         Component* c = (id != -1) ? FindById(id) : nullptr;
         if (c && c->type == SW_INPUT) {
             c->state = !c->state;   // 切换!
+            dirty = true;           // 开关状态也会存进文件,所以算一次修改
             RunSim();               // 电路变了,重新算一遍
         }
         return;
@@ -176,6 +180,7 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
             PushUndo();
             Wire w = { wireFromComp, wireFromPin, cid, pin };
             wires.push_back(w);
+            dirty = true;
             wireFromComp = -1;   // 可以继续连下一根
         }
         NotifyChanged();
@@ -208,6 +213,7 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
         }
         components.push_back(c);
         selectedId = -1;
+        dirty = true;
     }
     NotifyChanged();   // 通知系统重画(触发 OnPaint)
 }
@@ -236,8 +242,10 @@ void DrawingCanvas::OnLeftUp(wxMouseEvent&)
         dragging = false;
         ReleaseMouse();
         // 真的移动过才记一步撤销(纯点选不污染撤销链)
-        if (dragStartSnapshot != CircuitToJson(components, wires))
+        if (dragStartSnapshot != CircuitToJson(components, wires)) {
             CommitSnapshot(dragStartSnapshot);
+            dirty = true;
+        }
         NotifyChanged();
     }
 }
@@ -267,21 +275,31 @@ void DrawingCanvas::NewDocument()
     undoStack.clear();
     redoStack.clear();
     filePath = "";
+    dirty = false;
     NotifyChanged();
 }
 
 bool DrawingCanvas::SaveFile(const wxString& path)
 {
-    if (!SaveCircuit(path, components, wires))
+    if (!SaveCircuit(path, components, wires, customDefs))
         return false;
     filePath = path;   // 记住存到哪了,下次 Ctrl+S 直接覆盖
+    dirty = false;     // 存过盘了,没有未保存修改
     return true;
 }
 
 bool DrawingCanvas::LoadFile(const wxString& path)
 {
-    if (!LoadCircuit(path, components, wires, nextId))
+    wxVector<CustomDef> loadedDefs;
+    if (!LoadCircuit(path, components, wires, nextId, &loadedDefs))
         return false;
+    // 文件里的自定义元件库并进当前库(同名则以文件里的为准)
+    for (size_t i = 0; i < loadedDefs.size(); i++) {
+        bool merged = false;
+        for (size_t k = 0; k < customDefs.size(); k++)
+            if (customDefs[k].name == loadedDefs[i].name) { customDefs[k].truth = loadedDefs[i].truth; merged = true; break; }
+        if (!merged) customDefs.push_back(loadedDefs[i]);
+    }
     selectedId = -1;       // 旧电路的选中状态全部作废
     wireMode = false;
     wireFromComp = -1;
@@ -290,6 +308,7 @@ bool DrawingCanvas::LoadFile(const wxString& path)
     undoStack.clear();     // 换了一份图纸,旧的撤销历史没有意义
     redoStack.clear();
     filePath = path;
+    dirty = false;         // 刚打开的图纸是干净的
     NotifyChanged();
     return true;
 }
@@ -310,6 +329,7 @@ bool DrawingCanvas::ImportNetlist(const wxString& path)
     undoStack.clear();
     redoStack.clear();
     filePath = "";   // 网表不是工程文件,之后另存为 .eda
+    dirty = true;    // 导入出来的电路还没存过盘
     NotifyChanged();
     return true;
 }
@@ -330,6 +350,7 @@ void DrawingCanvas::DeleteSelected()
                     wires.erase(wires.begin() + j);
             }
             selectedId = -1;
+            dirty = true;
             NotifyChanged();
             return;
         }
@@ -458,6 +479,38 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
 
     // 编号标签,比如 U1
     dc.DrawText(wxString::Format("U%d", c.id), x - 12, y - 36);
+}
+
+// ================================================================
+// 自定义元件管理:数一数画布上有几个用了这个名字的元件
+// ================================================================
+int DrawingCanvas::CountCustomInstances(const wxString& name) const
+{
+    int n = 0;
+    for (size_t i = 0; i < components.size(); i++)
+        if (components[i].type == GATE_CUSTOM && components[i].customName == name)
+            n++;
+    return n;
+}
+
+// 元件库里的定义改了(改名/改真值表)之后,把画布上已放置的同名元件一起更新,
+// 否则"库"和"画布"就对不上了。改动前先存快照,可以撤销。
+void DrawingCanvas::UpdateCustomInstances(const wxString& oldName, const wxString& newName, int truth)
+{
+    bool changed = false;
+    for (size_t i = 0; i < components.size(); i++) {
+        Component& c = components[i];
+        if (c.type == GATE_CUSTOM && c.customName == oldName) {
+            if (!changed) { PushUndo(); changed = true; }
+            c.customName = newName;
+            c.truth = truth;
+        }
+    }
+    if (changed) {
+        dirty = true;
+        RunSim();     // 真值表变了,如果正在仿真要重算
+        NotifyChanged();
+    }
 }
 
 // ================================================================

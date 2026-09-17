@@ -27,6 +27,13 @@ struct Component {
                            //   例:NAND 的 truth = 0b0111 = 7 → (0,1,1,1)
 };
 
+// 用户自定义元件的"定义"(元件库条目):名字 + 真值表。
+// 放在数据层,因为它是要跟着电路一起存盘的数据,不只是界面的事
+struct CustomDef {
+    wxString name;
+    int truth = 0;
+};
+
 // 一根连线:起点(元件编号+引脚号) → 终点(元件编号+引脚号)
 struct Wire {
     int comp1, pin1;

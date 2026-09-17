@@ -29,6 +29,8 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStart,  this, ID_MENU_SIMULATE_START);
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStop,   this, ID_MENU_SIMULATE_STOP);
     Bind(wxEVT_MENU, &MyFrame::OnCustomGate,     this, ID_MENU_CUSTOM_GATE);
+    Bind(wxEVT_MENU, &MyFrame::OnManageCustom,   this, ID_MENU_MANAGE_CUSTOM);
+    Bind(wxEVT_CLOSE_WINDOW, &MyFrame::OnClose,  this);
     Bind(wxEVT_MENU, &MyFrame::OnAbout,          this, ID_MENU_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit,           this, wxID_EXIT);
 
@@ -79,6 +81,7 @@ void MyFrame::CreateMenuBar()
     wxMenu* projectMenu = new wxMenu();
     projectMenu->Append(ID_MENU_NEW, "新建工程(&N)...", "新建工程");
     projectMenu->Append(ID_MENU_CUSTOM_GATE, "新建自定义元件(&C)...", "用真值表定义一个新元件");
+    projectMenu->Append(ID_MENU_MANAGE_CUSTOM, "管理自定义元件(&M)...", "编辑/删除已定义的自定义元件");
     menuBar->Append(projectMenu, "工程(&P)");
 
     // ---------- 仿真 ----------
@@ -179,8 +182,7 @@ void MyFrame::CreateClientArea()
 
     // 自定义元件分支:一个"新建"入口,以后每定义一个就往这里挂一个节点
     customRootItem = componentTree->AppendItem(root, "自定义元件");
-    componentTree->AppendItem(customRootItem, "＋ 新建自定义元件...",
-                              -1, -1, new GateItemData(GATE_AND, -1, true));
+    // 注意:这里先不填充分支 —— 自定义元件库在画布上,而画布是后面才创建的
 
     componentTree->Expand(root);
     componentTree->Expand(gates);
@@ -199,7 +201,8 @@ void MyFrame::CreateClientArea()
     propertyList->InsertColumn(1, "值", wxLIST_FORMAT_LEFT, 130);
 
     // 画布上选中/改动元件时,回调这里刷新属性表
-    canvas->SetSelectionCallback([this]() { RefreshPropertyTable(); });
+    canvas->SetSelectionCallback([this]() { RefreshPropertyTable(); UpdateTitle(); });
+    RebuildCustomTree();   // 画布已就绪,现在填充"自定义元件"分支
     RefreshPropertyTable();
 
     // ---------- 用 sizer 把三块拼起来 ----------
@@ -273,11 +276,11 @@ void MyFrame::RefreshPropertyTable()
 void MyFrame::DefineCustomGate()
 {
     // 预填上一个定义,方便"改改再做一个新的"
-    wxString defName = wxString::Format("MYGATE%d", (int)customDefs.size() + 1);
+    wxString defName = wxString::Format("MYGATE%d", (int)canvas->CustomDefs().size() + 1);
     int defTruth = 0;
-    if (customDefs.size() > 0) {
-        defName = customDefs.back().name + "2";
-        defTruth = customDefs.back().truth;
+    if (canvas->CustomDefs().size() > 0) {
+        defName = canvas->CustomDefs().back().name + "2";
+        defTruth = canvas->CustomDefs().back().truth;
     }
 
     CustomGateDialog dlg(this, defName, defTruth);
@@ -287,15 +290,124 @@ void MyFrame::DefineCustomGate()
     def.name = dlg.GetGateName();
     def.name.Trim(true).Trim(false);        // 去掉首尾空格
     if (def.name.empty())
-        def.name = wxString::Format("自定义%d", (int)customDefs.size() + 1);
+        def.name = wxString::Format("自定义%d", (int)canvas->CustomDefs().size() + 1);
     def.truth = dlg.GetTruth();
-    customDefs.push_back(def);
+    canvas->CustomDefs().push_back(def);
 
-    wxTreeItemId item = componentTree->AppendItem(customRootItem, def.name, -1, -1,
-        new GateItemData(GATE_CUSTOM, (int)customDefs.size() - 1));
+    RebuildCustomTree();
+    // 展开并选中刚建的那个节点(选中→触发 OnTreeSelect→进入放置模式)
     componentTree->Expand(customRootItem);
-    componentTree->SelectItem(item);   // 选中→触发 OnTreeSelect→进入放置模式
+    wxTreeItemIdValue cookie;
+    wxTreeItemId item = componentTree->GetFirstChild(customRootItem, cookie);
+    while (item.IsOk()) {
+        if (componentTree->GetItemText(item) == def.name) { componentTree->SelectItem(item); break; }
+        item = componentTree->GetNextChild(customRootItem, cookie);
+    }
     SetStatusText(wxString::Format("自定义元件「%s」已定义,点击画布放置", def.name), 1);
+}
+
+// ================================================================
+// 重建树上的"自定义元件"分支
+// 为什么要整个重建:每个节点上挂着"每个定义在列表里的下标",
+// 删除/改名后下标会错位,与其逐个修正不如全部重建
+// ================================================================
+void MyFrame::RebuildCustomTree()
+{
+    // 防御:自定义元件库挂在画布上,建界面时树可能比画布先创建 ——
+    // 提前访问空指针会直接崩溃(踩过的真 bug)
+    if (!canvas || !customRootItem.IsOk()) return;
+    componentTree->DeleteChildren(customRootItem);
+
+    componentTree->AppendItem(customRootItem, "＋ 新建自定义元件...",
+                              -1, -1, new GateItemData(GATE_AND, -1, true));
+    for (size_t i = 0; i < canvas->CustomDefs().size(); i++) {
+        componentTree->AppendItem(customRootItem, canvas->CustomDefs()[i].name, -1, -1,
+                                  new GateItemData(GATE_CUSTOM, (int)i));
+    }
+    componentTree->Expand(customRootItem);
+}
+
+// ================================================================
+// 管理自定义元件:弹列表对话框,关闭后把用户做过的操作
+// 逐条落到模型(定义列表)和画布(已放置的同名元件)上
+// ================================================================
+void MyFrame::ManageCustomGates()
+{
+    if (canvas->CustomDefs().empty()) {
+        wxMessageBox("还没有自定义元件。可以用菜单 工程 → 新建自定义元件 先定义一个。",
+                     "提示", wxOK | wxICON_INFORMATION, this);
+        return;
+    }
+
+    CustomManagerDialog dlg(this, canvas->CustomDefs());
+    dlg.ShowModal();
+
+    const wxVector<CustomDefAction>& acts = dlg.GetActions();
+    for (size_t i = 0; i < acts.size(); i++) {
+        const CustomDefAction& a = acts[i];
+        if (a.kind == CustomDefAction::ADD) {
+            CustomDef d; d.name = a.newName; d.truth = a.truth;
+            canvas->CustomDefs().push_back(d);
+        } else if (a.kind == CustomDefAction::EDIT) {
+            for (size_t k = 0; k < canvas->CustomDefs().size(); k++)
+                if (canvas->CustomDefs()[k].name == a.oldName) {
+                    canvas->CustomDefs()[k].name = a.newName;
+                    canvas->CustomDefs()[k].truth = a.truth;
+                }
+            // 画布上同名的已放置元件一起更新(可撤销)
+            canvas->UpdateCustomInstances(a.oldName, a.newName, a.truth);
+        } else {
+            int n = canvas->CountCustomInstances(a.oldName);
+            for (size_t k = 0; k < canvas->CustomDefs().size(); k++)
+                if (canvas->CustomDefs()[k].name == a.oldName) { canvas->CustomDefs().erase(canvas->CustomDefs().begin() + k); break; }
+            if (n > 0)
+                SetStatusText(wxString::Format("已删除定义「%s」;画布上已放置的 %d 个保持不变", a.oldName, n), 1);
+        }
+    }
+    if (!acts.empty()) {
+        RebuildCustomTree();
+        RefreshPropertyTable();
+    }
+}
+
+void MyFrame::OnManageCustom(wxCommandEvent&) { ManageCustomGates(); }
+
+// ================================================================
+// 标题栏:显示文件名和"有未保存修改"星号
+// ================================================================
+void MyFrame::UpdateTitle()
+{
+    wxString t = "工业软件创新训练 - 电路原理图编辑器";
+    if (!canvas->GetFilePath().empty()) t += "  —  " + wxFileName(canvas->GetFilePath()).GetFullName();
+    if (canvas->IsDirty()) t += "  *";
+    SetTitle(t);
+}
+
+// ================================================================
+// 有未保存修改时问一句:保存 / 不保存 / 取消
+// 返回 true = 可以继续(已保存或用户放弃),false = 用户取消了
+// ================================================================
+bool MyFrame::ConfirmDiscardChanges()
+{
+    if (!canvas->IsDirty()) return true;
+
+    wxMessageDialog dlg(this, "当前电路有未保存的修改。要先保存吗?",
+                        "MyEDA", wxYES_NO | wxCANCEL | wxICON_QUESTION);
+    dlg.SetYesNoLabels("保存(&S)", "不保存(&D)");
+    int r = dlg.ShowModal();
+    if (r == wxID_CANCEL) return false;
+    if (r == wxID_NO) return true;
+
+    wxCommandEvent dummy;
+    OnSave(dummy);                     // 没存过会弹"另存为"
+    return !canvas->IsDirty();         // 保存成功才能继续(在另存为里取消则原地不动)
+}
+
+// 关闭窗口:先问存盘,用户取消就不关了
+void MyFrame::OnClose(wxCloseEvent& e)
+{
+    if (!ConfirmDiscardChanges()) { e.Veto(); return; }
+    e.Skip();
 }
 
 // ================================================================
@@ -303,13 +415,14 @@ void MyFrame::DefineCustomGate()
 // ================================================================
 void MyFrame::OnNew(wxCommandEvent&)
 {
-    // 新建 = 清空画布。目前没有“未保存提醒”,大家自己注意先存盘
+    if (!ConfirmDiscardChanges()) return;   // 有未保存修改先问一句
     canvas->NewDocument();
     SetStatusText("已新建(画布清空)");
 }
 
 void MyFrame::OnOpen(wxCommandEvent&)
 {
+    if (!ConfirmDiscardChanges()) return;   // 有未保存修改先问一句
     wxFileDialog dlg(this, "打开电路文件", wxGetCwd(), "",
                      "MyEDA 电路文件 (*.eda)|*.eda",
                      wxFD_OPEN | wxFD_FILE_MUST_EXIST);
@@ -325,10 +438,12 @@ void MyFrame::OnSave(wxCommandEvent&)
         OnSaveAs(e);
         return;
     }
-    if (canvas->SaveFile(canvas->GetFilePath()))
+    if (canvas->SaveFile(canvas->GetFilePath())) {
         SetStatusText("已保存:" + canvas->GetFilePath());
-    else
+        UpdateTitle();
+    } else {
         SetStatusText("保存失败!");
+    }
 }
 
 void MyFrame::OnSaveAs(wxCommandEvent&)
@@ -337,10 +452,12 @@ void MyFrame::OnSaveAs(wxCommandEvent&)
                      "MyEDA 电路文件 (*.eda)|*.eda",
                      wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
     if (dlg.ShowModal() != wxID_OK) return;
-    if (canvas->SaveFile(dlg.GetPath()))
+    if (canvas->SaveFile(dlg.GetPath())) {
         SetStatusText("已保存:" + dlg.GetPath());
-    else
+        UpdateTitle();
+    } else {
         SetStatusText("保存失败!");
+    }
 }
 void MyFrame::OnExportKicadSch(wxCommandEvent&)
 {
@@ -372,10 +489,13 @@ void MyFrame::OnImportNetlist(wxCommandEvent&)
                      "KiCad 网表 (*.net)|*.net",
                      wxFD_OPEN | wxFD_FILE_MUST_EXIST);
     if (dlg.ShowModal() != wxID_OK) return;
-    if (canvas->ImportNetlist(dlg.GetPath()))
+    if (canvas->ImportNetlist(dlg.GetPath())) {
+        RebuildCustomTree();     // 网表里可能有自定义元件(按名字重建的)
+        RefreshPropertyTable();
         SetStatusText("网表已导入(元件按网格重新排布):" + dlg.GetPath());
-    else
+    } else {
         SetStatusText("导入失败!");
+    }
 }
 void MyFrame::OnUndo(wxCommandEvent&)         { SetStatusText(canvas->Undo() ? "已撤销" : "没有可撤销的操作"); }
 void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText(canvas->Redo() ? "已重做" : "没有可重做的操作"); }
@@ -396,10 +516,14 @@ void MyFrame::OnExit(wxCommandEvent&)         { Close(true); }
 // 打开文件(菜单和启动参数共用)
 void MyFrame::OpenPath(const wxString& path)
 {
-    if (canvas->LoadFile(path))
+    if (canvas->LoadFile(path)) {
+        RebuildCustomTree();     // 文件里的自定义元件库要显示到树上
+        RefreshPropertyTable();
+        UpdateTitle();
         SetStatusText("已打开:" + path);
-    else
+    } else {
         SetStatusText("打开失败:" + path);
+    }
 }
 
 // ================================================================
@@ -407,6 +531,14 @@ void MyFrame::OpenPath(const wxString& path)
 // ================================================================
 void MyFrame::OnTreeSelect(wxTreeEvent& e)
 {
+    // 防御:重建树上分支时(先删后加)会触发选中变化事件,此时节点可能已失效。
+    // 不判断就会访问已删除的节点 → 程序崩溃(踩过的坑!)
+    if (!e.GetItem().IsOk()) return;
+    if (!componentTree->GetItemData(e.GetItem())) {
+        // 分支节点没有挂数据,提示一句即可(但仍要能展开)
+        SetStatusText("请展开分支选择具体元件", 1);
+        return;
+    }
     GateItemData* data = (GateItemData*)componentTree->GetItemData(e.GetItem());
     if (!data) {
         // 没挂数据的节点 = 分支节点(例如"基本门电路"),它们只能展开不能放置
@@ -421,8 +553,9 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
     }
 
     // 点了已定义的自定义元件:进入放置模式
-    if (data->type == GATE_CUSTOM && data->customIdx >= 0 && data->customIdx < (int)customDefs.size()) {
-        const CustomDef& def = customDefs[data->customIdx];
+    if (data->type == GATE_CUSTOM && data->customIdx >= 0 &&
+        data->customIdx < (int)canvas->CustomDefs().size()) {
+        const CustomDef& def = canvas->CustomDefs()[data->customIdx];
         canvas->SetCustomPlace(def.name, def.truth);
         SetStatusText("放置自定义元件：" + def.name + ",点击画布放置", 1);
         return;

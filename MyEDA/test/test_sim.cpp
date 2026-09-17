@@ -170,6 +170,21 @@ int main(int argc, char** argv) {
         Check("PARSE nextId", pnext, 6);
     }
 
+    // ============ 自定义元件库跟着存档一起保存 ============
+    {
+        wxVector<CustomDef> defs;
+        CustomDef d1; d1.name = "MYAND"; d1.truth = 8; defs.push_back(d1);
+        CustomDef d2; d2.name = "MYXOR"; d2.truth = 6; defs.push_back(d2);
+
+        wxString json = CircuitToJson(comps, wires, defs);
+        wxVector<Component> cs2; wxVector<Wire> ws2; wxVector<CustomDef> defs2; int next = 1;
+        JsonToCircuit(std::string((const char*)json.utf8_str()), cs2, ws2, next, &defs2);
+        Check("LIB persist count", (int)defs2.size(), 2);
+        Check("LIB persist name", defs2[0].name == "MYAND" ? 1 : 0, 1);
+        Check("LIB persist truth", defs2[1].truth, 6);
+        Check("LIB persist comps intact", (int)cs2.size(), (int)comps.size());
+    }
+
     // ============ 网表:扇出(一个输出带多个输入)必须合并成一个网络 ============
     // 半加器电路:SW_A 同时接到 XOR 和 AND 的输入 → 电气上是同一个网络,
     // 网表里 U1 的引脚 0 只能出现在一个网络里(出现两次 PCB 软件会报错)

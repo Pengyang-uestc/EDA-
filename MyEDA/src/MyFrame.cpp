@@ -252,7 +252,17 @@ void MyFrame::OnSaveAs(wxCommandEvent&)
     else
         SetStatusText("保存失败!");
 }
-void MyFrame::OnExportNetlist(wxCommandEvent&){ SetStatusText("导出网表"); }
+void MyFrame::OnExportNetlist(wxCommandEvent&)
+{
+    wxFileDialog dlg(this, "导出 KiCad 网表", wxGetCwd(), "未命名.net",
+                     "KiCad 网表 (*.net)|*.net",
+                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dlg.ShowModal() != wxID_OK) return;
+    if (canvas->ExportNetlist(dlg.GetPath()))
+        SetStatusText("网表已导出:" + dlg.GetPath());
+    else
+        SetStatusText("导出失败!");
+}
 void MyFrame::OnImportNetlist(wxCommandEvent&){ SetStatusText("导入网表"); }
 void MyFrame::OnUndo(wxCommandEvent&)         { SetStatusText("撤销"); }
 void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText("重做"); }

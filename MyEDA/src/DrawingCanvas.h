@@ -3,6 +3,7 @@
 #include <wx/vector.h>
 #include "Component.h"
 #include "CircuitFile.h"
+#include "NetlistExport.h"
 
 // 绘图区:显示网格和所有已放置的元件。
 // 交互约定:在左边树/工具栏选中元件类型 → 在这里点一下就放一个;
@@ -20,6 +21,9 @@ public:
     bool LoadFile(const wxString& path);
     void NewDocument();                                // 新建:清空一切,回到初始状态
     const wxString& GetFilePath() const { return filePath; }
+
+    // 导出 KiCad 网表(任务5)
+    bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
 
 private:
     void OnPaint(wxPaintEvent&);

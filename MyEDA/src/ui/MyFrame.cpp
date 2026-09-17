@@ -1,4 +1,4 @@
-#include "MyFrame.h"
+#include "ui/MyFrame.h"
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
 

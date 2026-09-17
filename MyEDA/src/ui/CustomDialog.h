@@ -4,7 +4,7 @@
 #include <wx/statline.h>
 #include <wx/vector.h>
 
-#include "Component.h"   // CustomDef 定义在数据层
+#include "core/Component.h"   // CustomDef 定义在数据层
 
 // 管理对话框里每做一步操作就记一条"账",关闭后由主窗口统一落到模型和画布上。
 // 这样做的好处:对话框只负责"问用户",不直接改数据 —— 职责清晰,也好测试。

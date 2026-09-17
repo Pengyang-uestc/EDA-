@@ -1,4 +1,4 @@
-#include "DrawingCanvas.h"
+#include "editor/DrawingCanvas.h"
 #include <algorithm>
 
 DrawingCanvas::DrawingCanvas(wxWindow* parent)

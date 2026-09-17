@@ -3,8 +3,8 @@
 #include <wx/vector.h>
 #include <set>
 #include <string>
-#include "Component.h"
-#include "NetlistExport.h"   // 复用 PartName / PinTypeOf / GatePinCount
+#include "core/Component.h"
+#include "file/NetlistExport.h"   // 复用 PartName / PinTypeOf / GatePinCount
 
 // ================================================================
 // 把电路导出成 KiCad 原理图(.kicad_sch)。

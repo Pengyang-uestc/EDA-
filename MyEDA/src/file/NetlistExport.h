@@ -9,7 +9,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "Component.h"
+#include "core/Component.h"
 
 // ================================================================
 // 网表 = 电路的"电气描述":有哪些元件、哪些引脚彼此相连。

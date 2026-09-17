@@ -4,11 +4,11 @@
 #include <functional>
 #include <map>
 #include <set>
-#include "Component.h"
-#include "CircuitFile.h"
-#include "NetlistExport.h"
-#include "KicadSchExport.h"
-#include "Simulation.h"
+#include "core/Component.h"
+#include "file/CircuitFile.h"
+#include "file/NetlistExport.h"
+#include "file/KicadSchExport.h"
+#include "sim/Simulation.h"
 
 // 绘图区:显示网格和所有已放置的元件。
 // 交互约定:

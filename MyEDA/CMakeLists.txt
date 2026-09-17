@@ -7,12 +7,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(wxWidgets REQUIRED COMPONENTS core base)
 include(${wxWidgets_USE_FILE})
 
+# ================================================================
+# 源码按"模块"分目录,对应小组分工(详见 docs/分工与答辩手册.md):
+#   core/   数据模型(共同语言)        —— 全组共用,由 B 维护
+#   ui/     主窗口与对话框              —— A 负责
+#   editor/ 绘图区与编辑交互            —— B 负责
+#   file/   存档 / 网表 / KiCad 导出     —— C 负责
+#   sim/    仿真引擎(纯函数)          —— D 负责
+#   test/   单元测试                    —— D 负责
+# include 路径以 src/ 为根,所以写 "core/Component.h" 这样一眼知道来自哪层
+# ================================================================
+
 # WIN32 表示 GUI 子系统程序（入口 WinMain），否则按控制台程序链接会报“无法解析 main”
 add_executable(MyEDA WIN32
-    src/MyApp.cpp
-    src/MyFrame.cpp
-    src/DrawingCanvas.cpp
+    src/ui/MyApp.cpp
+    src/ui/MyFrame.cpp
+    src/editor/DrawingCanvas.cpp
 )
+
+# 让 #include "core/xxx.h" 这类写法的根目录是 src/
+target_include_directories(MyEDA PRIVATE src)
 
 target_link_libraries(MyEDA PRIVATE ${wxWidgets_LIBRARIES})
 

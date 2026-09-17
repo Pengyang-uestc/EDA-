@@ -5,7 +5,7 @@
 #include <fstream>
 #include <regex>
 #include <string>
-#include "Component.h"
+#include "core/Component.h"
 
 // ================================================================
 // 电路的保存与加载(JSON 文本格式),与界面完全解耦——

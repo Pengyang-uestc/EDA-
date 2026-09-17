@@ -2,7 +2,7 @@
 #include <wx/wx.h>
 #include <wx/vector.h>
 #include <map>
-#include "Component.h"
+#include "core/Component.h"
 
 // ================================================================
 // 逻辑仿真引擎(纯函数,与界面解耦)。

@@ -3,10 +3,10 @@
 #include <fstream>
 #include <iterator>
 #include <string>
-#include "Simulation.h"
-#include "CircuitFile.h"
-#include "NetlistExport.h"
-#include "KicadSchExport.h"
+#include "sim/Simulation.h"
+#include "file/CircuitFile.h"
+#include "file/NetlistExport.h"
+#include "file/KicadSchExport.h"
 
 int failures = 0;
 void Check(const char* name, int got, int want) {

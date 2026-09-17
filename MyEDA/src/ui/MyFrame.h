@@ -2,8 +2,8 @@
 #include <wx/wx.h>
 #include <wx/treectrl.h>   // wxTreeCtrl 树控件
 #include <wx/listctrl.h>   // wxListCtrl 列表/表格控件
-#include "DrawingCanvas.h"
-#include "CustomDialog.h"  // 自定义元件对话框
+#include "editor/DrawingCanvas.h"
+#include "ui/CustomDialog.h"  // 自定义元件对话框
 
 // ============ 菜单 ID ============
 enum {

@@ -166,6 +166,8 @@ void MyFrame::CreateClientArea()
     componentTree->AppendItem(gates, "或门 OR",  -1, -1, new GateItemData(GATE_OR));
     componentTree->AppendItem(gates, "非门 NOT", -1, -1, new GateItemData(GATE_NOT));
     componentTree->AppendItem(gates, "异或门 XOR", -1, -1, new GateItemData(GATE_XOR));
+    componentTree->AppendItem(gates, "与非门 NAND", -1, -1, new GateItemData(GATE_NAND));
+    componentTree->AppendItem(gates, "或非门 NOR", -1, -1, new GateItemData(GATE_NOR));
 
     wxTreeItemId io = componentTree->AppendItem(root, "输入/输出");
     componentTree->AppendItem(io, "开关", -1, -1, new GateItemData(SW_INPUT));
@@ -312,7 +314,7 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
     }
 
     canvas->SetPlaceType(data->type);
-    wxString name[] = { "与门", "或门", "非门", "异或门", "开关", "指示灯" };
+    wxString name[] = { "与门", "或门", "非门", "异或门", "与非门", "或非门", "开关", "指示灯" };
     SetStatusText("放置:" + name[data->type] + ",点击画布放置", 1);
 }
 

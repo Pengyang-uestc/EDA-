@@ -28,3 +28,9 @@ add_custom_command(TARGET MyEDA POST_BUILD
     ${CMAKE_SOURCE_DIR}/src/res
     $<TARGET_FILE_DIR:MyEDA>/res
 )
+
+# 仿真引擎单元测试(不弹窗口):cmake --build build --target test_sim --config Debug
+add_executable(test_sim EXCLUDE_FROM_ALL test/test_sim.cpp)
+target_include_directories(test_sim PRIVATE src)
+target_link_libraries(test_sim PRIVATE ${wxWidgets_LIBRARIES})
+target_compile_options(test_sim PRIVATE "/source-charset:utf-8")

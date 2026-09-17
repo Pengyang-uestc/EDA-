@@ -1,12 +1,15 @@
 #pragma once
 #include <wx/wx.h>
 
-// 元件类型(元件库:三种基本门 + 异或门 + 输入开关 + 输出指示灯)
+// 元件类型(元件库注册表:新增自定义元件,在 4 个"注册点"各加一行——
+// ①这里的枚举 ②GateTypeName/FromName 名字表 ③DrawGate 绘制 ④SimulateCircuit 仿真逻辑)
 enum GateType {
     GATE_AND,
     GATE_OR,
     GATE_NOT,
     GATE_XOR,
+    GATE_NAND,   // 与非 = 与门+非门(自定义扩展示例)
+    GATE_NOR,    // 或非 = 或门+非门
     SW_INPUT,   // 开关:用鼠标点击切换 0/1,输出引脚
     SW_LED,     // 指示灯:亮=1 灭=0,输入引脚
 };
@@ -28,7 +31,7 @@ struct Wire {
 };
 
 // 引脚编号约定:
-//   与门/或门/异或门: 0=上输入 1=下输入 2=输出
+//   与门/或门/异或门/与非/或非: 0=上输入 1=下输入 2=输出
 //   非门: 0=输入 1=输出
 //   开关/指示灯: 0(开关=输出,指示灯=输入)
 inline int GatePinCount(const Component& c) {
@@ -42,6 +45,16 @@ inline wxPoint GetPinPos(const Component& c, int pin) {
         if (pin == 0) return wxPoint(c.x - 20, c.y - 10);
         if (pin == 1) return wxPoint(c.x - 20, c.y + 10);
         return wxPoint(c.x + 20, c.y);
+    }
+    if (c.type == GATE_NAND) {   // 与非门:输入同与门,输出在小圆圈右侧
+        if (pin == 0) return wxPoint(c.x - 20, c.y - 10);
+        if (pin == 1) return wxPoint(c.x - 20, c.y + 10);
+        return wxPoint(c.x + 29, c.y);
+    }
+    if (c.type == GATE_NOR) {    // 或非门:输入同或门,输出在小圆圈右侧
+        if (pin == 0) return wxPoint(c.x - 22, c.y - 9);
+        if (pin == 1) return wxPoint(c.x - 22, c.y + 9);
+        return wxPoint(c.x + 29, c.y);
     }
     if (c.type == GATE_OR || c.type == GATE_XOR) {
         if (pin == 0) return wxPoint(c.x - 22, c.y - 9);

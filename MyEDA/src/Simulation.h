@@ -52,6 +52,8 @@ inline std::map<int,int> SimulateCircuit(const wxVector<Component>& comps,
             if (c.type == GATE_AND)      res = v0 & in(c, 1);
             else if (c.type == GATE_OR)  res = v0 | in(c, 1);
             else if (c.type == GATE_XOR) res = v0 ^ in(c, 1);
+            else if (c.type == GATE_NAND) res = !(v0 & in(c, 1));
+            else if (c.type == GATE_NOR)  res = !(v0 | in(c, 1));
             else /* GATE_NOT */          res = !v0;
             out[c.id] = res;
         }

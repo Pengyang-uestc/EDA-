@@ -18,6 +18,8 @@ inline wxString GateTypeName(GateType t) {
     if (t == GATE_OR)  return "OR";
     if (t == GATE_NOT) return "NOT";
     if (t == GATE_XOR) return "XOR";
+    if (t == GATE_NAND) return "NAND";
+    if (t == GATE_NOR) return "NOR";
     if (t == SW_INPUT) return "SW";
     return "LED";
 }
@@ -25,6 +27,8 @@ inline GateType GateTypeFromName(const std::string& s) {
     if (s == "OR")  return GATE_OR;
     if (s == "NOT") return GATE_NOT;
     if (s == "XOR") return GATE_XOR;
+    if (s == "NAND") return GATE_NAND;
+    if (s == "NOR") return GATE_NOR;
     if (s == "SW")  return SW_INPUT;
     if (s == "LED") return SW_LED;
     return GATE_AND;
@@ -58,7 +62,7 @@ inline bool JsonToCircuit(const std::string& text,
     comps.clear();
     wires.clear();
 
-    std::regex compRe("\\{\"id\":(\\d+),\"type\":\"(AND|OR|NOT|XOR|SW|LED)\",\"x\":(-?\\d+),\"y\":(-?\\d+),\"state\":(\\d)\\}");
+    std::regex compRe("\\{\"id\":(\\d+),\"type\":\"(AND|OR|NOT|XOR|NAND|NOR|SW|LED)\",\"x\":(-?\\d+),\"y\":(-?\\d+),\"state\":(\\d)\\}");
     std::regex wireRe("\\[(\\d+),(\\d+),(\\d+),(\\d+)\\]");
     auto end = std::sregex_iterator();
 

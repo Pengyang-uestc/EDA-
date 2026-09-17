@@ -259,13 +259,14 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
 
     int x = c.x, y = c.y;
 
-    if (c.type == GATE_AND) {
-        // 与门:左边一竖 + 上下横线 + 右边半圆,组成"D"形
+    if (c.type == GATE_AND || c.type == GATE_NAND) {
+        // 与门/与非门:D 形;与非门右侧多一个小圆圈
         dc.DrawLine(x - 20, y - 20, x - 20, y + 20);
         dc.DrawLine(x - 20, y - 20, x, y - 20);
         dc.DrawLine(x - 20, y + 20, x, y + 20);
         dc.DrawArc(x, y + 20, x, y - 20, x, y);
-    } else if (c.type == GATE_OR || c.type == GATE_XOR) {
+        if (c.type == GATE_NAND) dc.DrawCircle(x + 24, y, 4);
+    } else if (c.type == GATE_OR || c.type == GATE_XOR || c.type == GATE_NOR) {
         // 或门/异或门:折线弯月形;异或门在左边多画一条凹线
         wxPoint pts[6] = {
             wxPoint(x - 22, y - 18),   // 左上
@@ -286,6 +287,7 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
             };
             dc.DrawLines(4, pts2);
         }
+        if (c.type == GATE_NOR) dc.DrawCircle(x + 25, y, 4);
     } else if (c.type == GATE_NOT) {
         // 非门:三角形 + 右边小圆圈
         dc.DrawLine(x - 16, y - 14, x - 16, y + 14);

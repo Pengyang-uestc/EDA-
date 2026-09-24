@@ -534,10 +534,13 @@ void MyFrame::OnPaste(wxCommandEvent&)        { canvas->PasteClipboard(); SetSta
 void MyFrame::OnDelete(wxCommandEvent&)
 {
     if (canvas->IsSimRunning()) { canvas->Hint("仿真运行中不能删除,请先停止仿真(F6)"); return; }
-    if (canvas->GetSelectionCount() == 0) { canvas->Hint("请先点选元件(选中后变蓝框)"); return; }
-    canvas->DeleteSelected();
-    SetStatusText("已删除选中元件");
-    UpdateTitle();
+    if (canvas->GetSelectionCount() == 0) { SetStatusText("请先点选元件(选中后变蓝框),再删除", 1); return; }
+    if (canvas->DeleteSelected()) {
+        SetStatusText("已删除选中元件");
+        UpdateTitle();
+    } else {
+        SetStatusText("没有可删除的元件", 1);
+    }
 }
 void MyFrame::OnSimulateStart(wxCommandEvent&){ canvas->StartSim(); SetStatusText("仿真运行中:点击开关切换状态"); }
 void MyFrame::OnSimulateStop(wxCommandEvent&) { canvas->StopSim(); SetStatusText("仿真已停止"); }

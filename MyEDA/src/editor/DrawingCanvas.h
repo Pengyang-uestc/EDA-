@@ -30,7 +30,7 @@ public:
     void SetSelectMode();                              // 进入"框选"模式
     bool IsSelectMode() const { return selectMode; }
     void SelectAll();                                  // 全选(编辑菜单 Ctrl+A)
-    void DeleteSelected();                             // 删除所有选中元件
+    bool DeleteSelected();                             // 删除所有选中元件;返回是否真的删了
 
     // 保存/打开:真正干活的是 CircuitFile.h 里的函数,这里只负责"拿数据"和"换数据"
     bool SaveFile(const wxString& path);
@@ -76,6 +76,9 @@ public:
     int  GetOutputValue(int compId) const;      // 某元件输出引脚的仿真值
     int  GetPinValue(int compId, int pin) const;// 某输入引脚连到的来源值
     void SetSelectionCallback(std::function<void()> cb) { onSelection = cb; }
+    // 提示回调:画布遇到"删不掉/点不中"这类情况时,把原因送到状态栏,不再静默
+    void SetHintCallback(std::function<void(const wxString&)> cb) { onHint = cb; }
+    void Hint(const wxString& msg) { if (onHint) onHint(msg); }
 
     // 自定义元件库(属于文档数据:跟着电路一起存盘)
     wxVector<CustomDef>& CustomDefs() { return customDefs; }
@@ -141,4 +144,5 @@ private:
     wxString filePath;                          // 当前电路对应的文件(空=还没保存过)
     bool dirty = false;                         // 有未保存的修改?
     std::function<void()> onSelection;          // 选中/内容变化时通知外面刷新属性表
+    std::function<void(const wxString&)> onHint; // 操作没生效时,把原因送出去显示
 };

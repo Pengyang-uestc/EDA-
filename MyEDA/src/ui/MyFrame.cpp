@@ -531,7 +531,14 @@ void MyFrame::OnRedo(wxCommandEvent&)         { SetStatusText(canvas->Redo() ? "
 void MyFrame::OnCut(wxCommandEvent&)          { canvas->CutSelected(); SetStatusText("已剪切"); }
 void MyFrame::OnCopy(wxCommandEvent&)         { canvas->CopySelected(); SetStatusText("已复制"); }
 void MyFrame::OnPaste(wxCommandEvent&)        { canvas->PasteClipboard(); SetStatusText("已粘贴"); }
-void MyFrame::OnDelete(wxCommandEvent&)       { canvas->DeleteSelected(); SetStatusText("删除选中元件"); }
+void MyFrame::OnDelete(wxCommandEvent&)
+{
+    if (canvas->IsSimRunning()) { canvas->Hint("仿真运行中不能删除,请先停止仿真(F6)"); return; }
+    if (canvas->GetSelectionCount() == 0) { canvas->Hint("请先点选元件(选中后变蓝框)"); return; }
+    canvas->DeleteSelected();
+    SetStatusText("已删除选中元件");
+    UpdateTitle();
+}
 void MyFrame::OnSimulateStart(wxCommandEvent&){ canvas->StartSim(); SetStatusText("仿真运行中:点击开关切换状态"); }
 void MyFrame::OnSimulateStop(wxCommandEvent&) { canvas->StopSim(); SetStatusText("仿真已停止"); }
 void MyFrame::OnAbout(wxCommandEvent&)
@@ -601,7 +608,7 @@ void MyFrame::OnTreeSelect(wxTreeEvent& e)
 // ================================================================
 void MyFrame::OnToolSelect(wxCommandEvent&)   { canvas->SetSelectMode(); SetStatusText("选择模式：空白处拖动=框选，Shift+点=加选，Esc=取消选择", 1); }
 void MyFrame::OnToolWire(wxCommandEvent&)     { canvas->SetWireMode(); SetStatusText("连线:先点起点引脚,再点终点引脚", 1); }
-void MyFrame::OnToolDelete(wxCommandEvent&)   { SetStatusText("执行：删除", 1); }
+void MyFrame::OnToolDelete(wxCommandEvent&)   { wxCommandEvent e; OnDelete(e); }
 void MyFrame::OnToolAnd(wxCommandEvent&)      { canvas->SetPlaceType(GATE_AND); SetStatusText("放置：与门,点击画布放置", 1); }
 void MyFrame::OnToolOr(wxCommandEvent&)       { canvas->SetPlaceType(GATE_OR);  SetStatusText("放置：或门,点击画布放置", 1); }
 void MyFrame::OnToolNot(wxCommandEvent&)      { canvas->SetPlaceType(GATE_NOT); SetStatusText("放置：非门,点击画布放置", 1); }

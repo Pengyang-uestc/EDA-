@@ -202,6 +202,8 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
             c->state = !c->state;   // 切换!
             dirty = true;           // 开关状态也会存进文件,所以算一次修改
             RunSim();
+        } else {
+            Hint("仿真运行中:点击开关可切换;要删除/移动元件请先停止仿真");
         }
         return;
     }
@@ -354,7 +356,8 @@ bool DrawingCanvas::InRect(const Component& c, int x1, int y1, int x2, int y2) c
 void DrawingCanvas::OnKeyDown(wxKeyEvent& e)
 {
     if (e.GetKeyCode() == WXK_DELETE) {
-        DeleteSelected();
+        if (!DeleteSelected())
+            Hint("没有可删除的元件:先点选元件(变蓝框),仿真中请先停止仿真");
     } else if (e.GetKeyCode() == WXK_ESCAPE) {
         sel.clear();
         NotifyChanged();
@@ -441,9 +444,16 @@ bool DrawingCanvas::ImportNetlist(const wxString& path)
 // ================================================================
 // 删除所有选中元件(它身上的连线也要一起删,不然连线会"悬空"指向不存在的元件)
 // ================================================================
-void DrawingCanvas::DeleteSelected()
+bool DrawingCanvas::DeleteSelected()
 {
-    if (sel.empty()) return;
+    if (simRunning) {
+        Hint("仿真运行中不能删除元件,请先停止仿真(工具栏[仿真]或 F6)");
+        return false;
+    }
+    if (sel.empty()) {
+        Hint("请先点选元件(选中后元件变蓝框),再删除");
+        return false;
+    }
     PushUndo();
 
     // 从后往前删元件,避免删除时下标错位
@@ -460,6 +470,7 @@ void DrawingCanvas::DeleteSelected()
     sel.clear();
     dirty = true;
     NotifyChanged();
+    return true;
 }
 
 // ================================================================

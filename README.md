@@ -1,121 +1,86 @@
-# MyEDA — 电路原理图编辑器
+# MyEDA — 数字电路原理图编辑器
 
-> 「工业软件创新训练 I」课程项目 · 小组四人合作
-> 用 **C++17 + wxWidgets 3.2** 实现的数字电路原理图编辑工具：
-> 画电路 → 逻辑仿真 → 导出网表 → 在 KiCad 里生成 PCB。
->
-> 📖 **所有教程已合并成一页**:[项目完整教程.md](项目完整教程.md)
-> (新人上手 / 功能操作 / 分工答辩 / 实现讲解 / 报告指南 —— 带目录可跳转,网页上连续阅读)
+“工业软件创新训练 I”四人课程项目，使用 C++17、wxWidgets 3.2 和 CMake。
 
----
+在画布上放置逻辑门、连接引脚，点击开关验证 0/1 逻辑，保存工程或导出文件到 KiCad。
 
-## 一、功能(对应课程六个任务)
+## 快速开始（Windows）
 
-| 任务 | 内容 | 我们的实现 |
-|---|---|---|
-| 1 硬件电路基础 | 逻辑代数与组合逻辑 | 学习笔记见 `docs/学习笔记-数字电路基础/` |
-| 2 用户界面模块 | 菜单/工具栏/元件库树/绘图区/属性表 | 主窗口三栏布局,属性表随选中实时刷新 |
-| 3 元件库模块 | 预定义元件 + **用户自定义元件** | 与/或/非/异或/与非/或非门 + 开关 + 指示灯;**用户用真值表自定义元件** |
-| 4 绘图与编辑模块 | 放置/移动/连线等 | 放置、整组拖动、引脚连线、框选多选、删除、复制粘贴、撤销重做 |
-| 5 文件功能模块 | 网表结构 + 导入导出,能被 PCB 软件加载 | `.eda` 工程存档;KiCad 网表导出/导入;**网表在 KiCad 10 里导入 0 错误并生成 PCB** |
-| 6 电路仿真模块 | 动态信号传播与逻辑仿真 | 迭代传播算法;点开关实时重算,导线按电位着色,LED 亮灭 |
+先安装 Visual Studio 2022 的“使用 C++ 的桌面开发”（含 CMake 工具），准备 wxWidgets 3.2 的 x64 静态库。首次配置见[新人上手指南](docs/新人上手指南.md)。
 
-**验收案例**:半加器(两开关 + 异或门 + 与门 + 两灯),四种输入组合与真值表一致。
-
----
-
-## 二、目录结构(按模块划分,对应小组分工)
-
-```
-MyEDA/
-├── CMakeLists.txt            构建脚本
-├── src/
-│   ├── core/     Component.h              数据模型:元件/连线/引脚坐标
-│   ├── ui/       MyApp.cpp                程序入口
-│   │             MyFrame.h/.cpp           主窗口:菜单/工具栏/元件库树/绘图区/属性表
-│   │             CustomDialog.h           自定义元件对话框(真值表定义 + 管理)
-│   ├── editor/   DrawingCanvas.h/.cpp     绘图区:绘制元件符号 + 鼠标交互(放置/拖动/连线/框选/撤销)
-│   ├── file/     CircuitFile.h            .eda 工程存档(JSON)读写
-│   │             NetlistExport.h          网表导出/导入(KiCad S 表达式)
-│   │             KicadSchExport.h         导出 .kicad_sch 原理图
-│   ├── sim/      Simulation.h             仿真引擎(纯函数,不碰界面)
-│   └── res/                               工具栏图标(10 个 PNG)
-├── test/         test_sim.cpp             单元测试(45 项)+ 命令行工具
-└── docs/                                  教程、分工手册、样例、学习笔记
-```
-
-| 目录 | 负责人 | 说明 |
-|---|---|---|
-| `src/core/` | 全组共用(B 维护) | 数据模型是共同语言,先冻结再开发 |
-| `src/ui/` | A | 界面与对话框 |
-| `src/editor/` | B | 绘图与编辑交互 |
-| `src/file/` | C | 存档、网表、KiCad 对接 |
-| `src/sim/` + `test/` | D | 仿真引擎与测试 |
-
-> 分工细节、逐人讲稿、答辩 20 问见 **[docs/分工与答辩手册.md](docs/分工与答辩手册.md)**
-
----
-
-## 三、编译与运行
-
-前置:Visual Studio 2022(或 BuildTools)+ CMake ≥ 3.20 + 已编译好的 wxWidgets 3.2(静态库)。
-
-```bash
-# 1) 生成工程(wxWidgets 路径按本机实际情况改)
-cmake -S MyEDA -B MyEDA/build -G "Visual Studio 17 2022" -A x64 \
-      -DwxWidgets_ROOT_DIR="<wxWidgets 源码目录>" \
-      -DwxWidgets_LIB_DIR="<wxWidgets 源码目录>/lib/vc_x64_lib"
-
-# 2) 编译
-cmake --build MyEDA/build --config Debug
-
-# 3) 运行(可直接带文件路径打开电路)
-MyEDA\build\Debug\MyEDA.exe
-MyEDA\build\Debug\MyEDA.exe docs\样例\半加器\half_adder.eda
-```
-
-> **最省事的做法:双击仓库根目录的 `build.bat`** —— 它会自动找 wxWidgets、生成工程、
-> 编译,并跑一遍单元测试。不用记任何命令。
-> (命令行等价于 `.\build.ps1`;如果自动找不到 wxWidgets,用 `.\build.ps1 -Wx "<wx目录>"` 指定)
-
-> **源码目录结构调整过也没关系**:直接重新运行 `build.bat`(或上面的 cmake 命令)即可,
-> CMake 会检测到 `CMakeLists.txt` 变化并自动重新生成工程文件。
-> 已实测:用旧结构的 build 目录直接编译新结构源码,一次通过。
-> 万一真出问题,再 `.\build.ps1 -Clean` 清掉重建。
-
-## 四、测试与命令行工具
-
-```bash
-# 单元测试(不开窗口):45 项检查,覆盖真值表/存档往返/网表往返/KiCad 网表互操作
-cmake --build MyEDA/build --config Debug --target test_sim
-MyEDA\build\Debug\test_sim.exe
-
-# 命令行工具(同一程序的两个模式)
-test_sim.exe --export-netlist  电路.eda 输出.net          # 导出 KiCad 网表
-test_sim.exe --export-kicad-sch 电路.eda 输出.kicad_sch   # 导出 KiCad 原理图
-test_sim.exe --parse-netlist   任意.net                   # 解析网表并打印摘要
-```
-
-## 五、文档与样例
-
-| 位置 | 内容 |
+| 你想做什么 | 仓库根目录中的入口 |
 |---|---|
-| `docs/功能操作手册.md` | **每个菜单/按钮/操作的完整说明** + 文件格式 + 快捷键表 + 常见操作速查 |
-| `docs/课程报告写作指南.md` | 报告大纲、六任务对照表、代码地图、证据清单、分工声明模板 |
-| `docs/速查卡-A界面.png` 等四张 | **每人一张答辩速查卡**(我负责什么/关键代码/怎么答/演示哪步/练习),打印带上台 |
-| `docs/新人上手-一页图.png` | 上手指南的**一页图版**(发群/贴报告用) |
-| `docs/新人上手指南.md` | **第一次拿到项目怎么跑起来**(全流程双击操作,含常见问题) |
-| `docs/分工与答辩手册.md` | 四人分工、逐人讲稿、8 步现场演示脚本、老师可能问的 20 问 + 答案、现场应急 |
-| `docs/实现讲解-新手版.md` | 面向零基础的技术讲解:数据模型、分层、各功能"为什么这么写"、踩坑记录 |
-| `docs/学习笔记-数字电路基础/` | 任务 1 的学习资料(逻辑代数、组合逻辑) |
-| `docs/样例/半加器/` | 同一个半加器的四件套:`.eda`(工程)、`.net`(网表)、`.kicad_sch`(原理图)、`.kicad_pcb`(KiCad 生成的 PCB) |
-| `docs/样例/*.png` | 关键验证截图(KiCad 导入 0 错误、生成的 PCB、演示参考图) |
+| 首次编译，或验证自己修改的代码 | 双击 `build.bat`，编译和测试通过后打开 `MyEDA/build/Debug/MyEDA.exe` |
+| 更新当前分支并运行 | 先关闭 MyEDA，再双击 `update-and-run.bat` |
+| 不更新，只运行已有程序 | 双击 `MyEDA/build/Debug/MyEDA.exe` |
 
-## 六、与 KiCad 的对接(已实测)
+更新入口要求工作区干净且当前分支有远程跟踪分支；有本地修改、拉取失败、编译失败或测试失败时停止。它不会自动提交、暂存或覆盖改动。Git 只更新源码，程序仍需编译；入口会自动完成增量编译。
 
-1. 在我们程序里:文件 → 导出网表 / 导出 KiCad 原理图
-2. 在 KiCad 的 PCB 编辑器里:文件 → 导入 → 网表 → 选择 `.net`
-   (或直接打开导出的 `.kicad_sch` 后按 F8「从原理图更新 PCB」)
-3. 实测结果:**错误 0**,生成 PCB(6 个封装、40 个焊盘、4 个网络)
-   - 网表里的网络名就是我们生成的,例如 `Net-(U1-Pad1)`
-   - 元件默认封装:逻辑门 `Package_DIP:DIP-14_W7.62mm`、开关 `Button_Switch_THT:SW_PUSH_6mm`、灯 `LED_THT:LED_D5.0mm`
+打开示例：程序中选择“文件 → 打开”，选择 `docs/样例/半加器/half_adder.eda`，按 F5 后点击开关。
+
+## 功能与范围
+
+- 6 种逻辑门、开关、指示灯，共 8 种内置元件；支持用真值表定义双输入、单输出元件。
+- 放置、移动、连线、框选、复制粘贴、删除、撤销和重做。
+- 0/1 组合逻辑仿真，导线按逻辑值着色，指示灯显示输出。
+- `.eda` 工程存档；KiCad 网表导入/导出；KiCad 原理图导出。
+
+当前没有时钟/触发器、模拟电压电流或器件延迟仿真。KiCad 样例展示封装和网络导入，尚未完成 PCB 布线；默认封装用于对接演示，不能直接视为可制造电路。详细限制见[操作手册](docs/功能操作手册.md)。
+
+## 文档导航
+
+| 目的 | 文档 |
+|---|---|
+| 安装、运行、排查启动错误 | [新人上手指南](docs/新人上手指南.md) |
+| 四人分支、提交、更新和合并 | [四人协作指南](docs/四人协作指南.md) |
+| 菜单、鼠标操作、快捷键与文件格式 | [功能操作手册](docs/功能操作手册.md) |
+| 理解代码和仿真原理 | [实现讲解](docs/实现讲解-新手版.md) |
+| 分工和答辩演示 | [分工与答辩手册](docs/分工与答辩手册.md) |
+| 组织课程报告 | [课程报告写作指南](docs/课程报告写作指南.md) |
+| 数字电路基础 | [学习笔记](docs/学习笔记-数字电路基础/) |
+| 一页连续阅读 | [项目完整教程](项目完整教程.md)（自动生成，请勿直接编辑） |
+
+## 目录
+
+```text
+仓库根目录/
+├── README.md
+├── build.bat / build.ps1                 本地编译与测试
+├── update-and-run.bat / update-and-run.ps1  更新、编译、测试、启动
+├── MyEDA/
+│   ├── CMakeLists.txt
+│   ├── src/
+│   │   ├── core/       元件、连线数据模型
+│   │   ├── ui/         主窗口与对话框
+│   │   ├── editor/     绘图和编辑
+│   │   ├── file/       存档和 KiCad 对接
+│   │   ├── sim/        仿真
+│   │   └── res/        图标
+│   └── test/           测试及命令行工具
+├── docs/               分篇教程、学习笔记、演示图片和样例
+├── tools/              文档生成和检查工具
+└── 项目完整教程.md       由分篇教程生成
+```
+
+## 测试与文档维护
+
+`build.bat` 会编译并运行测试；必须看到测试通过且脚本成功结束。本次整理时已有测试包含 45 项检查，后续以实际输出为准。
+
+以下命令在仓库根目录的 **PowerShell** 中执行。三种命令行工具模式：
+
+```powershell
+.\MyEDA\build\Debug\test_sim.exe --export-netlist .\docs\样例\半加器\half_adder.eda .\MyEDA\build\half_adder.net
+.\MyEDA\build\Debug\test_sim.exe --export-kicad-sch .\docs\样例\半加器\half_adder.eda .\MyEDA\build\half_adder.kicad_sch
+.\MyEDA\build\Debug\test_sim.exe --parse-netlist .\docs\样例\半加器\half_adder.net
+```
+
+修改 `docs/` 中源文档后，用 Python 3 更新并检查合集：
+
+```powershell
+python .\tools\merge_docs.py
+python .\tools\merge_docs.py --check
+```
+
+Python 只用于维护文档，不是运行 MyEDA 的前置条件。演示图片和速查卡不会随文本自动更新，修改对应功能后需人工复核。
+
+维护构建脚本时，可在成功编译一次后运行 `python .\tools\test_build_failure.py`：它在临时目录模拟测试编译失败，确认脚本不会运行遗留的旧测试。

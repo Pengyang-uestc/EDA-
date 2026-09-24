@@ -26,3 +26,6 @@ shot_*.png
 
 # 例外:文档配图的生成脚本要进仓库
 !tools/*.ps1
+
+# Shared update entry point
+!update-and-run.ps1

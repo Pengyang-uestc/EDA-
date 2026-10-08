@@ -48,3 +48,11 @@ add_executable(test_sim EXCLUDE_FROM_ALL test/test_sim.cpp)
 target_include_directories(test_sim PRIVATE src)
 target_link_libraries(test_sim PRIVATE ${wxWidgets_LIBRARIES})
 target_compile_options(test_sim PRIVATE "/source-charset:utf-8")
+
+# Interactive paint regression checks: run on an unlocked Windows desktop.
+add_executable(test_canvas EXCLUDE_FROM_ALL test/test_canvas.cpp src/editor/DrawingCanvas.cpp)
+target_include_directories(test_canvas PRIVATE src)
+target_link_libraries(test_canvas PRIVATE ${wxWidgets_LIBRARIES})
+if(MSVC)
+    target_compile_options(test_canvas PRIVATE "/source-charset:utf-8")
+endif()

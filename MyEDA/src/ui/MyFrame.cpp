@@ -1,6 +1,8 @@
 #include "ui/MyFrame.h"
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
+#include <wx/bmpbndl.h>
+#include <wx/artprov.h>
 
 MyFrame::MyFrame(const wxString& title)
     : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(1200, 800))
@@ -118,23 +120,31 @@ void MyFrame::CreateToolBar()
     wxFileName exeFile(wxStandardPaths::Get().GetExecutablePath());
     wxString resDir = exeFile.GetPath() + "/res/";
 
-    // 加载图标；失败就用空白 24x24 位图兜底
-    auto loadBmp = [&](const wxString& name) -> wxBitmap {
-        wxBitmap bmp(resDir + name, wxBITMAP_TYPE_PNG);
-        if (!bmp.IsOk()) bmp = wxBitmap(24, 24);
-        return bmp;
+    // SVG bundles stay crisp when Windows display scaling changes.
+    // Existing PNGs remain compatible with builds lacking SVG support.
+    auto loadIcon = [&](const wxString& name) -> wxBitmapBundle {
+#ifdef wxHAS_SVG
+        const wxString svgPath = resDir + name + ".svg";
+        if (wxFileExists(svgPath)) {
+            wxBitmapBundle icon = wxBitmapBundle::FromSVGFile(svgPath, wxSize(24, 24));
+            if (icon.IsOk()) return icon;
+        }
+#endif
+        wxBitmap bitmap(resDir + name + ".png", wxBITMAP_TYPE_PNG);
+        if (bitmap.IsOk()) return wxBitmapBundle::FromBitmap(bitmap);
+        return wxArtProvider::GetBitmapBundle(wxART_MISSING_IMAGE, wxART_TOOLBAR, wxSize(24, 24));
     };
 
-    wxBitmap bmpNew       = loadBmp("new.png");
-    wxBitmap bmpOpen      = loadBmp("open.png");
-    wxBitmap bmpSave      = loadBmp("save.png");
-    wxBitmap bmpSelect    = loadBmp("select.png");
-    wxBitmap bmpWire      = loadBmp("wire.png");
-    wxBitmap bmpDelete    = loadBmp("delete.png");
-    wxBitmap bmpAnd       = loadBmp("and.png");
-    wxBitmap bmpOr        = loadBmp("or.png");
-    wxBitmap bmpNot       = loadBmp("not.png");
-    wxBitmap bmpSimulate  = loadBmp("simulate.png");
+    wxBitmapBundle bmpNew       = loadIcon("new");
+    wxBitmapBundle bmpOpen      = loadIcon("open");
+    wxBitmapBundle bmpSave      = loadIcon("save");
+    wxBitmapBundle bmpSelect    = loadIcon("select");
+    wxBitmapBundle bmpWire      = loadIcon("wire");
+    wxBitmapBundle bmpDelete    = loadIcon("delete");
+    wxBitmapBundle bmpAnd       = loadIcon("and");
+    wxBitmapBundle bmpOr        = loadIcon("or");
+    wxBitmapBundle bmpNot       = loadIcon("not");
+    wxBitmapBundle bmpSimulate  = loadIcon("simulate");
 
     // 文件操作
     toolBar->AddTool(ID_MENU_NEW,    "新建", bmpNew,  "新建电路");

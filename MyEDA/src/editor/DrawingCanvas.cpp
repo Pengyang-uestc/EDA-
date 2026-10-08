@@ -1,9 +1,12 @@
 #include "editor/DrawingCanvas.h"
 #include <algorithm>
+#include <wx/dcbuffer.h>
 
 DrawingCanvas::DrawingCanvas(wxWindow* parent)
     : wxPanel(parent, wxID_ANY)
 {
+    SetBackgroundStyle(wxBG_STYLE_PAINT); // Paint the background once, in the buffer.
+    Bind(wxEVT_SIZE, &DrawingCanvas::OnSize, this);
     Bind(wxEVT_PAINT, &DrawingCanvas::OnPaint, this);
     Bind(wxEVT_LEFT_DOWN, &DrawingCanvas::OnLeftDown, this);
     Bind(wxEVT_MOTION, &DrawingCanvas::OnMotion, this);
@@ -72,6 +75,7 @@ bool DrawingCanvas::Redo()
 // ================================================================
 void DrawingCanvas::SetSelectMode()
 {
+    CancelWirePreview();
     selectMode = true;
     wireMode = false;
     sel.clear();
@@ -129,17 +133,87 @@ void DrawingCanvas::PasteClipboard()
 
 void DrawingCanvas::NotifyChanged()
 {
-    Refresh();                          // 触发重画
+    InvalidateScene();                   // Content or selection changed: rebuild cached scene.
     if (onSelection) onSelection();     // 通知外面(属性表)刷新
 }
 
 // ================================================================
-// 画图:每次系统要求重画时,把网格 + 所有连线 + 所有元件重新画一遍
+// 画图:静态电路缓存 + 双缓冲预览;内容变化时才重建静态图
 // ================================================================
+void DrawingCanvas::InvalidateScene()
+{
+    sceneDirty = true;
+    Refresh(false);
+}
+
+void DrawingCanvas::OnSize(wxSizeEvent& e)
+{
+    InvalidateScene();
+    e.Skip();
+}
+
+void DrawingCanvas::CancelWirePreview()
+{
+    const bool hadPreview = wireFromComp != -1;
+    wireFromComp = wireFromPin = -1;
+    if (hadPreview) Refresh(false);
+}
+
+void DrawingCanvas::RefreshWirePreview(const wxPoint& endpoint)
+{
+    if (endpoint == wireEnd) return;
+    Component* source = FindById(wireFromComp);
+    if (!source) { CancelWirePreview(); return; }
+    const wxPoint start = GetPinPos(*source, wireFromPin);
+    // Invalidate both old and new strokes, including pen width, to erase trails.
+    // Refresh remains asynchronous so queued mouse events can share one paint.
+    RefreshRect(wxRect(start, wireEnd).Inflate(3), false);
+    wireEnd = endpoint;
+    RefreshRect(wxRect(start, wireEnd).Inflate(3), false);
+}
+
 void DrawingCanvas::OnPaint(wxPaintEvent&)
 {
-    wxPaintDC dc(this);
+    wxAutoBufferedPaintDC dc(this);
+    const wxSize size = GetClientSize();
+    if (size.x <= 0 || size.y <= 0) return;
+    const double scale = GetContentScaleFactor();
+    if (!sceneBitmap.IsOk() || sceneSize != size || sceneScale != scale) {
+        sceneBitmap.CreateWithDIPSize(size, scale);
+        sceneSize = size;
+        sceneScale = scale;
+        sceneDirty = true;
+    }
+    if (sceneDirty) {
+        wxMemoryDC sceneDC(sceneBitmap);
+        sceneDC.SetFont(GetFont());
+        DrawScene(sceneDC);
+        sceneDC.SelectObject(wxNullBitmap);
+        sceneDirty = false;
+    }
+    dc.DrawBitmap(sceneBitmap, 0, 0, false);
+    // 连线模式下的橡皮筋预览:灰色虚线跟着鼠标走
+    if (wireMode && wireFromComp != -1) {
+        Component* a = FindById(wireFromComp);
+        if (a) {
+            dc.SetPen(wxPen(*wxLIGHT_GREY, 1, wxPENSTYLE_SHORT_DASH));
+            dc.DrawLine(GetPinPos(*a, wireFromPin), wireEnd);
+        }
+    }
 
+    // 框选中的选择框:蓝色虚线矩形
+    if (rubberBand) {
+        dc.SetPen(wxPen(*wxBLUE, 1, wxPENSTYLE_SHORT_DASH));
+        dc.SetBrush(*wxTRANSPARENT_BRUSH);
+        int x1 = std::min(rbStart.x, rbEnd.x), x2 = std::max(rbStart.x, rbEnd.x);
+        int y1 = std::min(rbStart.y, rbEnd.y), y2 = std::max(rbStart.y, rbEnd.y);
+        dc.DrawRectangle(x1, y1, x2 - x1, y2 - y1);
+    }
+
+}
+
+void DrawingCanvas::DrawScene(wxDC& dc)
+{
     dc.SetBackground(*wxWHITE_BRUSH);
     dc.Clear();
 
@@ -161,24 +235,6 @@ void DrawingCanvas::OnPaint(wxPaintEvent&)
         else
             dc.SetPen(wxPen(*wxBLACK, 2));
         dc.DrawLine(GetPinPos(*a, wires[i].pin1), GetPinPos(*b, wires[i].pin2));
-    }
-
-    // 连线模式下的橡皮筋预览:灰色虚线跟着鼠标走
-    if (wireMode && wireFromComp != -1) {
-        Component* a = FindById(wireFromComp);
-        if (a) {
-            dc.SetPen(wxPen(*wxLIGHT_GREY, 1, wxPENSTYLE_SHORT_DASH));
-            dc.DrawLine(GetPinPos(*a, wireFromPin), wireEnd);
-        }
-    }
-
-    // 框选中的选择框:蓝色虚线矩形
-    if (rubberBand) {
-        dc.SetPen(wxPen(*wxBLUE, 1, wxPENSTYLE_SHORT_DASH));
-        dc.SetBrush(*wxTRANSPARENT_BRUSH);
-        int x1 = std::min(rbStart.x, rbEnd.x), x2 = std::max(rbStart.x, rbEnd.x);
-        int y1 = std::min(rbStart.y, rbEnd.y), y2 = std::max(rbStart.y, rbEnd.y);
-        dc.DrawRectangle(x1, y1, x2 - x1, y2 - y1);
     }
 
     // 再画元件(选中的会被 DrawGate 用蓝框标出)
@@ -217,14 +273,16 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
         if (wireFromComp == -1) {
             wireFromComp = cid;      // 第一下:选定起点引脚
             wireFromPin = pin;
+            wireEnd = GetPinPos(*FindById(cid), pin); // Never reuse an earlier endpoint.
         } else {
             PushUndo();              // 第二下:完成连线
             Wire w = { wireFromComp, wireFromPin, cid, pin };
             wires.push_back(w);
             dirty = true;
-            wireFromComp = -1;       // 可以继续连下一根
+            CancelWirePreview();     // 可以继续连下一根
+            NotifyChanged();
         }
-        NotifyChanged();
+        Refresh(false);
         return;
     }
 
@@ -295,14 +353,14 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
 // 拖动中:所有选中的元件跟着鼠标走;框选中:框跟着鼠标走;连线模式:预览线跟着走
 void DrawingCanvas::OnMotion(wxMouseEvent& e)
 {
+    if (simRunning) return;
     if (rubberBand) {
         rbEnd = wxPoint(e.GetX(), e.GetY());
-        Refresh();
+        Refresh(false);
         return;
     }
     if (wireMode && wireFromComp != -1) {
-        wireEnd = wxPoint(e.GetX(), e.GetY());
-        Refresh();
+        RefreshWirePreview(e.GetPosition());
         return;
     }
     if (!dragging)
@@ -313,7 +371,7 @@ void DrawingCanvas::OnMotion(wxMouseEvent& e)
         c->x = e.GetX() - dragItems[i].offX;
         c->y = e.GetY() - dragItems[i].offY;
     }
-    Refresh();
+    InvalidateScene();
 }
 
 void DrawingCanvas::OnLeftUp(wxMouseEvent&)
@@ -359,6 +417,7 @@ void DrawingCanvas::OnKeyDown(wxKeyEvent& e)
         if (!DeleteSelected())
             Hint("没有可删除的元件:先点选元件(变蓝框),仿真中请先停止仿真");
     } else if (e.GetKeyCode() == WXK_ESCAPE) {
+        CancelWirePreview();
         sel.clear();
         NotifyChanged();
     } else {

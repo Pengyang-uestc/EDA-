@@ -21,12 +21,13 @@ class DrawingCanvas : public wxPanel {
 public:
     DrawingCanvas(wxWindow* parent);
 
-    void SetPlaceType(GateType t) { placeType = t; wireMode = false; selectMode = false; }
+    void SetPlaceType(GateType t) { CancelWirePreview(); placeType = t; wireMode = false; selectMode = false; }
     void SetCustomPlace(const wxString& name, int truth) {   // 放置用户自定义元件
+        CancelWirePreview();
         placeType = GATE_CUSTOM; placeCustomName = name; placeCustomTruth = truth;
         wireMode = false; selectMode = false;
     }
-    void SetWireMode()  { wireMode = true; wireFromComp = -1; selectMode = false; }
+    void SetWireMode()  { CancelWirePreview(); wireMode = true; selectMode = false; }
     void SetSelectMode();                              // 进入"框选"模式
     bool IsSelectMode() const { return selectMode; }
     void SelectAll();                                  // 全选(编辑菜单 Ctrl+A)
@@ -55,7 +56,7 @@ public:
     }
 
     // 逻辑仿真(任务6)
-    void StartSim() { simRunning = true; RunSim(); NotifyChanged(); }
+    void StartSim() { CancelWirePreview(); simRunning = true; RunSim(); NotifyChanged(); }
     void StopSim()  { simRunning = false; NotifyChanged(); }
     bool IsSimRunning() const { return simRunning; }
 
@@ -89,6 +90,11 @@ public:
 
 private:
     void OnPaint(wxPaintEvent&);
+    void OnSize(wxSizeEvent&);
+    void DrawScene(wxDC& dc);             // Cache the grid, committed wires and components.
+    void CancelWirePreview();
+    void RefreshWirePreview(const wxPoint& endpoint);
+    void InvalidateScene();
     void OnLeftDown(wxMouseEvent&);
     void OnMotion(wxMouseEvent&);
     void OnLeftUp(wxMouseEvent&);
@@ -104,6 +110,11 @@ private:
     void CommitSnapshot(const wxString& snap);   // 外部算好的快照入栈(拖动用)
     void RestoreSnapshot(const wxString& snap);
     bool InRect(const Component& c, int x1, int y1, int x2, int y2) const;  // 框选:元件是否落在框里
+
+    wxBitmap sceneBitmap;
+    bool sceneDirty = true;
+    wxSize sceneSize;
+    double sceneScale = 0.0;
 
     wxVector<Component> components;   // 画布上所有元件(核心数据!)
     wxVector<CustomDef> customDefs;   // 用户自定义元件的库(名字+真值表)

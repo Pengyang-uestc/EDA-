@@ -1,6 +1,8 @@
 #include "editor/DrawingCanvas.h"
 #include <algorithm>
 #include <wx/dcbuffer.h>
+#include <wx/graphics.h>
+#include <memory>
 
 DrawingCanvas::DrawingCanvas(wxWindow* parent)
     : wxPanel(parent, wxID_ANY)
@@ -156,20 +158,24 @@ void DrawingCanvas::CancelWirePreview()
 {
     const bool hadPreview = wireFromComp != -1;
     wireFromComp = wireFromPin = -1;
+    wireBends.clear();
     if (hadPreview) Refresh(false);
 }
 
 void DrawingCanvas::RefreshWirePreview(const wxPoint& endpoint)
 {
-    if (endpoint == wireEnd) return;
+    if (SnapGrid(endpoint) == wireEnd) return;
     Component* source = FindById(wireFromComp);
     if (!source) { CancelWirePreview(); return; }
     const wxPoint start = GetPinPos(*source, wireFromPin);
-    // Invalidate both old and new strokes, including pen width, to erase trails.
-    // Refresh remains asynchronous so queued mouse events can share one paint.
-    RefreshRect(wxRect(start, wireEnd).Inflate(3), false);
-    wireEnd = endpoint;
-    RefreshRect(wxRect(start, wireEnd).Inflate(3), false);
+    auto refreshPath = [&](const wxPoint& end) {
+        const auto path = BuildWirePath(start, wireBends, end);
+        for (size_t i = 1; i < path.size(); ++i)
+            RefreshRect(wxRect(path[i-1], path[i]).Inflate(4), false);
+    };
+    refreshPath(wireEnd);
+    wireEnd = SnapGrid(endpoint);
+    refreshPath(wireEnd);
 }
 
 void DrawingCanvas::OnPaint(wxPaintEvent&)
@@ -197,7 +203,8 @@ void DrawingCanvas::OnPaint(wxPaintEvent&)
         Component* a = FindById(wireFromComp);
         if (a) {
             dc.SetPen(wxPen(*wxLIGHT_GREY, 1, wxPENSTYLE_SHORT_DASH));
-            dc.DrawLine(GetPinPos(*a, wireFromPin), wireEnd);
+            const auto path = BuildWirePath(GetPinPos(*a, wireFromPin), wireBends, wireEnd);
+            if (path.size() > 1) dc.DrawLines((int)path.size(), &path[0]);
         }
     }
 
@@ -217,12 +224,16 @@ void DrawingCanvas::DrawScene(wxDC& dc)
     dc.SetBackground(*wxWHITE_BRUSH);
     dc.Clear();
 
-    // 淡灰色网格点
-    dc.SetPen(*wxLIGHT_GREY_PEN);
-    wxSize size = GetClientSize();
-    for (int x = 0; x < size.x; x += 25)
-        for (int y = 0; y < size.y; y += 25)
-            dc.DrawPoint(x, y);
+    // Fine 10-pixel grid with a stronger line every 50 pixels.
+    const wxSize size = GetClientSize();
+    for (int x = 0; x < size.x; x += CircuitGrid) {
+        dc.SetPen(wxPen(x % 50 == 0 ? wxColour(208,220,230) : wxColour(235,241,245)));
+        dc.DrawLine(x, 0, x, size.y);
+    }
+    for (int y = 0; y < size.y; y += CircuitGrid) {
+        dc.SetPen(wxPen(y % 50 == 0 ? wxColour(208,220,230) : wxColour(235,241,245)));
+        dc.DrawLine(0, y, size.x, y);
+    }
 
     // 先画连线(在元件下层)
     for (size_t i = 0; i < wires.size(); i++) {
@@ -234,7 +245,8 @@ void DrawingCanvas::DrawScene(wxDC& dc)
             dc.SetPen(wxPen(*wxRED, 2));
         else
             dc.SetPen(wxPen(*wxBLACK, 2));
-        dc.DrawLine(GetPinPos(*a, wires[i].pin1), GetPinPos(*b, wires[i].pin2));
+        const auto path = BuildWirePath(GetPinPos(*a, wires[i].pin1), wires[i].bends, GetPinPos(*b, wires[i].pin2));
+        if (path.size() > 1) dc.DrawLines((int)path.size(), &path[0]);
     }
 
     // 再画元件(选中的会被 DrawGate 用蓝框标出)
@@ -267,16 +279,28 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
     // ----- 连线模式 -----
     if (wireMode) {
         int cid, pin;
-        if (!HitPin(e.GetX(), e.GetY(), &cid, &pin))
-            return;   // 没点到引脚,忽略(不退出连线模式)
+        if (!HitPin(e.GetX(), e.GetY(), &cid, &pin)) {
+            if (wireFromComp != -1) {
+                const wxPoint point = SnapGrid(e.GetPosition());
+                const wxPoint previous = wireBends.empty() ? GetPinPos(*FindById(wireFromComp), wireFromPin) : wireBends.back();
+                if (point != previous) wireBends.push_back(point);
+                wireEnd = point;
+                Refresh(false);
+                Hint("已添加拐点：继续点网格添加，点目标引脚完成，Esc 取消");
+            }
+            return;
+        }
 
         if (wireFromComp == -1) {
+            wireBends.clear();
             wireFromComp = cid;      // 第一下:选定起点引脚
             wireFromPin = pin;
             wireEnd = GetPinPos(*FindById(cid), pin); // Never reuse an earlier endpoint.
         } else {
-            PushUndo();              // 第二下:完成连线
+            if (cid == wireFromComp && pin == wireFromPin) return;
+            PushUndo();              // Click target pin to commit the entire route.
             Wire w = { wireFromComp, wireFromPin, cid, pin };
+            w.bends = wireBends;
             wires.push_back(w);
             dirty = true;
             CancelWirePreview();     // 可以继续连下一根
@@ -337,8 +361,9 @@ void DrawingCanvas::OnLeftDown(wxMouseEvent& e)
     PushUndo();
     Component c;
     c.type = placeType;
-    c.x = e.GetX();
-    c.y = e.GetY();
+    const wxPoint placed = SnapGrid(e.GetPosition());
+    c.x = placed.x;
+    c.y = placed.y;
     c.id = nextId++;
     if (placeType == GATE_CUSTOM) {
         c.customName = placeCustomName;
@@ -368,8 +393,9 @@ void DrawingCanvas::OnMotion(wxMouseEvent& e)
     for (size_t i = 0; i < dragItems.size(); i++) {
         Component* c = FindById(dragItems[i].id);
         if (!c) continue;
-        c->x = e.GetX() - dragItems[i].offX;
-        c->y = e.GetY() - dragItems[i].offY;
+        const wxPoint moved = SnapGrid(wxPoint(e.GetX() - dragItems[i].offX, e.GetY() - dragItems[i].offY));
+        c->x = moved.x;
+        c->y = moved.y;
     }
     InvalidateScene();
 }
@@ -598,7 +624,57 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
 
     int x = c.x, y = c.y;
 
-    if (c.type == GATE_AND || c.type == GATE_NAND) {
+    // Smooth vector outlines fit inside the existing grid-aligned pin positions.
+    const bool andShape = c.type == GATE_AND || c.type == GATE_NAND;
+    const bool orShape = c.type == GATE_OR || c.type == GATE_XOR || c.type == GATE_NOR;
+    bool vectorPainted = false;
+    if (andShape || orShape) {
+        std::unique_ptr<wxGraphicsContext> gc(wxGraphicsContext::CreateFromUnknownDC(dc));
+        if (gc) {
+            gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
+            gc->SetPen(wxPen(isSel ? wxColour(0,126,189) : wxColour(42,64,82), isSel ? 2 : 1));
+            gc->SetBrush(wxBrush(isSel ? wxColour(229,246,255) : wxColour(253,254,255)));
+            auto body = gc->CreatePath();
+            if (andShape) {
+                body.MoveToPoint(x-14,y-17);
+                body.AddLineToPoint(x-2,y-17);
+                body.AddCurveToPoint(x+18,y-17,x+18,y+17,x-2,y+17);
+                body.AddLineToPoint(x-14,y+17);
+                body.CloseSubpath();
+            } else {
+                body.MoveToPoint(x-15,y-17);
+                body.AddCurveToPoint(x-1,y-18,x+8,y-11,x+14,y);
+                body.AddCurveToPoint(x+8,y+11,x-1,y+18,x-15,y+17);
+                body.AddCurveToPoint(x-5,y+6,x-5,y-6,x-15,y-17);
+                body.CloseSubpath();
+            }
+            gc->DrawPath(body);
+            if (c.type == GATE_XOR) {
+                auto extra = gc->CreatePath();
+                extra.MoveToPoint(x-20,y-17);
+                extra.AddCurveToPoint(x-10,y-6,x-10,y+6,x-20,y+17);
+                gc->StrokePath(extra);
+            }
+            const bool inverted = c.type == GATE_NAND || c.type == GATE_NOR;
+            if (inverted) gc->DrawEllipse(x+14,y-3,6,6);
+            auto leads = gc->CreatePath();
+            for (int pin=0; pin<2; ++pin) {
+                const wxPoint port = GetPinPos(c,pin);
+                const int bodyX = andShape ? x-14 : x-10;
+                leads.MoveToPoint(port.x,port.y);
+                leads.AddLineToPoint(bodyX,port.y);
+            }
+            const wxPoint output = GetPinPos(c,2);
+            leads.MoveToPoint(inverted ? x+20 : x+14,y);
+            leads.AddLineToPoint(output.x,y);
+            leads.AddLineToPoint(output.x,output.y);
+            gc->StrokePath(leads);
+            vectorPainted = true;
+        }
+    }
+    if (vectorPainted) {
+        // Pin markers and the label are shared with the remaining component types.
+    } else if (c.type == GATE_AND || c.type == GATE_NAND) {
         // 与门/与非门:D 形;与非门右侧多一个小圆圈
         dc.DrawLine(x - 20, y - 20, x - 20, y + 20);
         dc.DrawLine(x - 20, y - 20, x, y - 20);
@@ -653,6 +729,18 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
         int v = simRunning ? GetPinValue(c.id, 0) : 0;
         dc.SetBrush((simRunning && v == 1) ? *wxRED_BRUSH : *wxWHITE_BRUSH);
         dc.DrawCircle(x, y, 14);
+    }
+
+    dc.SetPen(wxPen(wxColour(62,91,116), 1));
+    dc.SetBrush(*wxWHITE_BRUSH);
+    for (int pin = 0; pin < GatePinCount(c); ++pin) {
+        const wxPoint raw = GetRawPinPos(c, pin);
+        const wxPoint snapped = GetPinPos(c, pin);
+        if (!vectorPainted) {
+            dc.DrawLine(raw, wxPoint(snapped.x, raw.y));
+            dc.DrawLine(wxPoint(snapped.x, raw.y), snapped);
+        }
+        dc.DrawCircle(snapped, 2);
     }
 
     // 编号标签,比如 U1

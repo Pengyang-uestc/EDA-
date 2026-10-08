@@ -1,6 +1,7 @@
 #include "editor/DrawingCanvas.h"
 #include <wx/dcmemory.h>
 #include <iostream>
+#include <wx/filename.h>
 
 class CanvasTestApp : public wxApp {
 public:
@@ -108,6 +109,34 @@ int main(int argc, char** argv) {
     frame->SetSize(originalSize);
     Flush(canvas);
     Check("resize preserves scene after rebuilding buffer", Differences(afterWire, Capture(canvas)) == 0);
+
+    canvas->Undo();
+    canvas->SetWireMode();
+    Mouse(canvas, wxEVT_LEFT_DOWN, 222,250);
+    Mouse(canvas, wxEVT_LEFT_DOWN, 303,248);
+    Mouse(canvas, wxEVT_LEFT_DOWN, 298,403);
+    Mouse(canvas, wxEVT_LEFT_DOWN, 447,398);
+    Mouse(canvas, wxEVT_LEFT_DOWN, 460,290);
+    Flush(canvas);
+    const wxString temp = wxFileName::CreateTempFileName("myeda-route-");
+    wxVector<Component> cs; wxVector<Wire> ws; int next=1;
+    auto readSaved = [&]() {
+        return canvas->SaveFile(temp) && LoadCircuit(temp,cs,ws,next);
+    };
+    Check("multiple grid clicks commit one wire", readSaved() && ws.size()==1);
+    Check("waypoints snap and survive save/load", ws.size()==1 && ws[0].bends.size()==3 &&
+        ws[0].bends[0]==wxPoint(300,250) && ws[0].bends[1]==wxPoint(300,400) && ws[0].bends[2]==wxPoint(450,400));
+    canvas->Undo();
+    Check("undo removes entire routed wire", readSaved() && ws.empty());
+    canvas->Redo();
+    Check("redo preserves all waypoints", readSaved() && ws.size()==1 && ws[0].bends.size()==3);
+    Flush(canvas);
+    auto routedScene = Capture(canvas);
+    Check("reload reproduces routed scene", canvas->LoadFile(temp));
+    Flush(canvas);
+    Check("saved route renders identically after reopen", Differences(routedScene,Capture(canvas))==0);
+    wxRemoveFile(temp);
+
     frame->Destroy();
     wxYield();
     wxTheApp->OnExit();

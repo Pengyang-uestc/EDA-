@@ -1,5 +1,6 @@
 #pragma once
 #include <wx/wx.h>
+#include "core/WireRouting.h"
 
 // 元件类型(元件库注册表:新增一种元件,在 4 个"注册点"各加一行——
 // ①这些枚举 ②GateTypeName/FromName 名字表 ③DrawGate 绘制 ④SimulateCircuit 仿真逻辑)
@@ -38,6 +39,7 @@ struct CustomDef {
 struct Wire {
     int comp1, pin1;
     int comp2, pin2;
+    wxVector<wxPoint> bends; // User-defined grid waypoints, independent of electrical connectivity.
 };
 
 // 引脚编号约定:
@@ -49,7 +51,7 @@ inline int GatePinCount(const Component& c) {
     return 3;
 }
 
-inline wxPoint GetPinPos(const Component& c, int pin) {
+inline wxPoint GetRawPinPos(const Component& c, int pin) {
     if (c.type == GATE_AND) {
         if (pin == 0) return wxPoint(c.x - 20, c.y - 10);
         if (pin == 1) return wxPoint(c.x - 20, c.y + 10);
@@ -81,6 +83,10 @@ inline wxPoint GetPinPos(const Component& c, int pin) {
     }
     if (c.type == SW_INPUT)  return wxPoint(c.x + 22, c.y);   // 开关:输出在右
     return wxPoint(c.x - 20, c.y);                            // 指示灯:输入在左
+}
+
+inline wxPoint GetPinPos(const Component& c, int pin) {
+    return SnapGrid(GetRawPinPos(c, pin));
 }
 
 // 给树控件挂的数据:点哪个树节点,就能查出对应哪种元件

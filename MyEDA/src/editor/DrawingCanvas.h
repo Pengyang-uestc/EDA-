@@ -143,6 +143,7 @@ private:
     // 连线模式状态:点第一个引脚记下起点,再点第二个引脚完成连线
     bool wireMode = false;
     int  wireFromComp = -1, wireFromPin = -1;   // 已选的起点引脚(-1=还没选)
+    wxVector<wxPoint> wireBends;
     wxPoint wireEnd{ 0, 0 };                    // 橡皮筋终点(鼠标当前位置)
 
     // 撤销/重做:存的是电路 JSON 文本快照(JSON 往返已验证无损,所以快照=完整状态)

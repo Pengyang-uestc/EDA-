@@ -3,6 +3,7 @@
 #include <wx/filename.h>
 #include <wx/bmpbndl.h>
 #include <wx/artprov.h>
+#include <wx/settings.h>
 
 MyFrame::MyFrame(const wxString& title)
     : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(1200, 800))
@@ -113,8 +114,12 @@ void MyFrame::CreateMenuBar()
 // ================================================================
 void MyFrame::CreateToolBar()
 {
-    wxToolBar* toolBar = wxFrame::CreateToolBar(wxTB_HORIZONTAL | wxTB_FLAT | wxTB_TEXT);
-    toolBar->SetToolBitmapSize(wxSize(24, 24));
+    wxToolBar* toolBar = wxFrame::CreateToolBar(wxTB_HORIZONTAL | wxTB_FLAT | wxTB_TEXT | wxTB_HORZ_LAYOUT);
+    toolBar->SetToolBitmapSize(FromDIP(wxSize(28, 28)));
+    toolBar->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
+    toolBar->SetMargins(FromDIP(8), FromDIP(6));
+    toolBar->SetToolPacking(FromDIP(6));
+    toolBar->SetBackgroundColour(wxColour(246,249,252));
 
     // 找到 res 目录（跟可执行文件同级）
     wxFileName exeFile(wxStandardPaths::Get().GetExecutablePath());
@@ -126,7 +131,7 @@ void MyFrame::CreateToolBar()
 #ifdef wxHAS_SVG
         const wxString svgPath = resDir + name + ".svg";
         if (wxFileExists(svgPath)) {
-            wxBitmapBundle icon = wxBitmapBundle::FromSVGFile(svgPath, wxSize(24, 24));
+            wxBitmapBundle icon = wxBitmapBundle::FromSVGFile(svgPath, wxSize(28, 28));
             if (icon.IsOk()) return icon;
         }
 #endif

@@ -56,6 +56,21 @@ inline wxString CircuitToJson(const wxVector<Component>& comps, const wxVector<W
                               (i + 1 < wires.size()) ? "," : "");
     }
     s += "  ],\n";
+    // Keep the legacy four-number wires array; optional drawing routes are separate.
+    s += "  \"wireRoutes\": [\n";
+    bool firstRoute = true;
+    for (size_t i = 0; i < wires.size(); ++i) {
+        if (wires[i].bends.empty()) continue;
+        if (!firstRoute) s += ",\n";
+        firstRoute = false;
+        s += wxString::Format("    {\"wire\":%d,\"points\":[", (int)i);
+        for (size_t j = 0; j < wires[i].bends.size(); ++j) {
+            if (j) s += ",";
+            s += wxString::Format("[%d,%d]", wires[i].bends[j].x, wires[i].bends[j].y);
+        }
+        s += "]}";
+    }
+    s += "\n  ],\n";
     // 自定义元件库也一起存:否则存盘重开后,已定义的自定义元件就再也改不了了
     s += "  \"customGates\": [\n";
     for (size_t i = 0; i < defs.size(); i++)
@@ -99,6 +114,15 @@ inline bool JsonToCircuit(const std::string& text,
         w.comp2 = std::stoi((*it)[3]);
         w.pin2  = std::stoi((*it)[4]);
         wires.push_back(w);
+    }
+    std::regex routeRe(R"route(\{"wire":(\d+),"points":\[((?:\[-?\d+,-?\d+\],?)*)\]\})route");
+    std::regex pointRe(R"point(\[(-?\d+),(-?\d+)\])point");
+    for (auto it = std::sregex_iterator(text.begin(), text.end(), routeRe); it != end; ++it) {
+        const size_t index = (size_t)std::stoul((*it)[1]);
+        if (index >= wires.size()) continue;
+        const std::string points = (*it)[2];
+        for (auto pt = std::sregex_iterator(points.begin(), points.end(), pointRe); pt != end; ++pt)
+            wires[index].bends.push_back(SnapGrid(wxPoint(std::stoi((*pt)[1]), std::stoi((*pt)[2]))));
     }
     nextId = maxId + 1;   // 新元件从最大编号+1 开始,保证编号不重复
 

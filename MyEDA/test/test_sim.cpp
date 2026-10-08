@@ -328,6 +328,32 @@ int main(int argc, char** argv) {
               (cw.size() == 1 && cw[0].comp1 == cc[0].id && cw[0].comp2 == cc[1].id) ? 1 : 0, 1);
     }
 
+
+    // Routing data must survive save/load without turning point pairs into wires.
+    {
+        const std::string routed = "{\"components\":[],\"wires\":[[1,0,2,0]],"
+            "\"wireRoutes\":[{\"wire\":0,\"points\":[[300,250],[300,400],[450,400]]}]}";
+        wxVector<Component> rc; wxVector<Wire> rw; int rn=1;
+        JsonToCircuit(routed, rc, rw, rn);
+        Check("ROUTE roundtrip preserves bend coordinates",
+            CircuitToJson(rc,rw).Find("[300,250],[300,400],[450,400]") != wxNOT_FOUND, 1);
+        Check("ROUTE point pairs do not create extra wires", (int)rw.size(), 1);
+    }
+
+
+    {
+        wxVector<wxPoint> bends; bends.push_back(wxPoint(301,247)); bends.push_back(wxPoint(298,403)); bends.push_back(wxPoint(449,397));
+        const auto path = BuildWirePath(wxPoint(222,250), bends, wxPoint(458,291));
+        bool grid = true, orthogonal = true;
+        for (size_t i=0; i<path.size(); ++i) {
+            grid = grid && path[i].x % CircuitGrid == 0 && path[i].y % CircuitGrid == 0;
+            if (i) orthogonal = orthogonal && (path[i].x == path[i-1].x || path[i].y == path[i-1].y);
+        }
+        Check("ROUTE every vertex on grid", grid, 1);
+        Check("ROUTE only horizontal or vertical segments", orthogonal, 1);
+        Check("GRID negative coordinates snap correctly", SnapGrid(wxPoint(-17,-24)) == wxPoint(-20,-20), 1);
+    }
+
     std::cout << (failures == 0 ? "=== ALL PASS ===" : "=== FAILED ===") << "\n";
     return failures;
 }

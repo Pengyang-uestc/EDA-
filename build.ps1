@@ -40,9 +40,13 @@ try {
     & $cmake @buildArgs
     if ($LASTEXITCODE -ne 0) { throw '程序编译失败，请查看上方第一条错误。' }
     Write-Host '[3/3] 编译并运行测试 ...' -ForegroundColor Cyan
-    & $cmake --build $buildDir --config Debug --target test_sim test_modules
+    & $cmake --build $buildDir --config Debug --target test_sim test_modules test_canvas
     if ($LASTEXITCODE -ne 0) { throw '测试程序编译失败；未运行旧测试程序。' }
     & (Join-Path $buildDir 'Debug\test_sim.exe')
+    if ($LASTEXITCODE -ne 0) { throw '测试未通过，请查看 FAIL 项；本次构建不算成功。' }
+    & (Join-Path $buildDir 'Debug\test_modules.exe')
+    if ($LASTEXITCODE -ne 0) { throw '测试未通过，请查看 FAIL 项；本次构建不算成功。' }
+    & (Join-Path $buildDir 'Debug\test_canvas.exe')
     if ($LASTEXITCODE -ne 0) { throw '测试未通过，请查看 FAIL 项；本次构建不算成功。' }
     Write-Host "编译和测试全部通过。程序：$exe" -ForegroundColor Green
     exit 0

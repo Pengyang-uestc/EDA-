@@ -33,3 +33,7 @@ cmake --install MyEDA/build --config Release --prefix release/MyEDA
 `core/Netlist.h` 提供 ElectricalNet 和 CircuitNetlist：网络编号、引脚、驱动端、接收端、未连接引脚及诊断。KiCad 导出拒绝无效引用和多驱动网络。无驱动网络保留警告，供参考网表检查；不能把警告理解为可仿真电路已经通过校验。导线交叉不自动连接，当前仍按端点定义电气连接。
 
 本机发布包和历史课程报告不随源码自动更新。历史文档中的旧脚本命令已失效，以本页 CMake 操作为准。
+
+## 团队更新
+
+已合并原理图位号重排、子电路元件管理，以及 docs/课程资料/中期总结汇报.md 和对应 PPT。构建与运行按上方 CMake 流程执行。

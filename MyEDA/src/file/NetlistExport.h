@@ -13,6 +13,7 @@
 #include "core/Component.h"
 #include "core/CircuitValidation.h"
 #include "core/Subcircuit.h"
+#include "core/Netlist.h"
 
 // ================================================================
 // 网表 = 电路的"电气描述":有哪些元件、哪些引脚彼此相连。
@@ -59,48 +60,9 @@ inline wxString PartName(const Component& c) {
 // 如果不合并,同一个引脚会出现在两个网络里,PCB 软件会当成冲突/短路报错。
 // 算法:并查集(union-find) —— 每根连线把两端"合并到同一组",
 //       最后同一组的引脚就是一个网络。
-inline std::vector<std::vector<std::pair<int,int>>> BuildNets(const wxVector<Wire>& wires)
-{
-    typedef std::pair<int,int> Pin;      // (元件编号, 引脚号)
-    std::map<Pin, Pin> parent;           // 并查集:引脚 → 它的"上级"
-
-    // 第 1 步:每个引脚先自成一派
-    for (size_t i = 0; i < wires.size(); i++) {
-        Pin a(wires[i].comp1, wires[i].pin1);
-        Pin b(wires[i].comp2, wires[i].pin2);
-        parent[a] = a;
-        parent[b] = b;
-    }
-    // 找"族长"(顺手做路径压缩,让下次查找更快)
-    auto findRoot = [&parent](Pin p) {
-        Pin root = p;
-        while (parent[root] != root) root = parent[root];
-        while (parent[p] != root) { Pin next = parent[p]; parent[p] = root; p = next; }
-        return root;
-    };
-    // 第 2 步:每根连线把两端并成一家
-    for (size_t i = 0; i < wires.size(); i++) {
-        Pin ra = findRoot(Pin(wires[i].comp1, wires[i].pin1));
-        Pin rb = findRoot(Pin(wires[i].comp2, wires[i].pin2));
-        if (ra != rb) parent[ra] = rb;
-    }
-    // 第 3 步:同一个族长的引脚归为一个网络
-    std::map<Pin, std::vector<Pin>> groups;
-    for (std::map<Pin, Pin>::iterator it = parent.begin(); it != parent.end(); ++it)
-        groups[findRoot(it->first)].push_back(it->first);
-
-    std::vector<std::vector<Pin>> nets;
-    for (std::map<Pin, std::vector<Pin>>::iterator it = groups.begin(); it != groups.end(); ++it) {
-        std::vector<Pin> nodes = it->second;
-        std::sort(nodes.begin(), nodes.end());   // 排序 → 输出稳定,便于往返比对
-        nets.push_back(nodes);
-    }
-    std::sort(nets.begin(), nets.end());
-    return nets;
-}
-
 // 把整份电路导出为 KiCad 网表文本
 inline wxString ExportKiCadNetlist(const wxVector<Component>& comps, const wxVector<Wire>& wires) {
+    if(!BuildCircuitNetlist(comps,wires).valid())return {};
     std::map<int, const Component*> byId;
     for (size_t i = 0; i < comps.size(); i++)
         byId[comps[i].id] = &comps[i];
@@ -110,6 +72,7 @@ inline wxString ExportKiCadNetlist(const wxVector<Component>& comps, const wxVec
         if(!FlattenCircuit(comps,wires,flat,flatW))return {};
         return ExportKiCadNetlist(flat,flatW);
     }
+    if(!BuildCircuitNetlist(comps,wires).valid())return {};
     wxString s = "(export (version \"E\")\n";
     s += "  (design\n";
     s += "    (source \"MyEDA schematic\")\n";

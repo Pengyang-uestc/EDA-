@@ -32,3 +32,6 @@ shot_*.png
 
 # Packaged demonstration builds
 dist/
+
+# Local application distribution
+release/

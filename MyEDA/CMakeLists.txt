@@ -64,3 +64,6 @@ target_link_libraries(test_modules PRIVATE ${wxWidgets_LIBRARIES})
 if(MSVC)
     target_compile_options(test_modules PRIVATE "/source-charset:utf-8")
 endif()
+# Standard application installation; no launcher scripts required.
+install(TARGETS MyEDA RUNTIME DESTINATION .)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/res" DESTINATION .)

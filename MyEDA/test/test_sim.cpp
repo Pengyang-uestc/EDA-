@@ -390,6 +390,16 @@ int main(int argc, char** argv) {
         Check("WIRE combinational feedback rejected",!NormalizeConnection(cs,ws,cycle),1);
     }
 
+    {
+      wxVector<Component> cs;Component c;c.id=1;c.type=SW_INPUT;cs.push_back(c);c.id=2;c.type=SW_LED;cs.push_back(c);c.id=3;c.type=SW_LED;cs.push_back(c);
+      wxVector<Wire> ws;ws.push_back({1,0,2,0});ws.push_back({1,0,3,0});auto nets=BuildCircuitNetlist(cs,ws);
+      Check("NETMODEL fanout has one driver two receivers",nets.valid() && nets.nets.size()==1 && nets.nets[0].drivers.size()==1 && nets.nets[0].receivers.size()==2,1);
+      ws.clear();Check("NETMODEL records disconnected pins",BuildCircuitNetlist(cs,ws).unconnected.size()==3,1);
+      ws.push_back({99,0,2,0});Check("NETMODEL rejects missing component",!BuildCircuitNetlist(cs,ws).valid(),1);
+      ws.clear();cs[2].type=SW_INPUT;ws.push_back({1,0,2,0});ws.push_back({3,0,2,0});
+      Check("NETMODEL rejects multiple drivers",!BuildCircuitNetlist(cs,ws).valid(),1);
+      Check("NETMODEL invalid export is empty",ExportKiCadNetlist(cs,ws).empty(),1);
+    }
     std::cout << (failures == 0 ? "=== ALL PASS ===" : "=== FAILED ===") << "\n";
     return failures;
 }

@@ -78,6 +78,7 @@ public:
     // 给右侧属性表用的查询接口(属性表由 MyFrame 更新,画布只提供数据)
     int  GetSelectionCount() const { return (int)sel.size() + (selectedWire >= 0 ? 1 : 0); }
     const Component* GetSelected() const;       // 只选中一个时返回它,否则 nullptr
+    bool SetSelectedLabel(const wxString& label);
     void GetSelectedIds(wxVector<int>& out) const;
     int GetOutputPinValue(int compId, int pin) const;
     int  GetOutputValue(int compId) const;      // 某元件输出引脚的仿真值

@@ -285,6 +285,15 @@ int main(int argc, char** argv) {
     const wxString moduleFile=finalFile+".edasub";
     Check("standalone module export succeeds",canvas->ExportModule(moduleFile,0));
     Check("duplicate module import is rejected",!canvas->ImportModules(moduleFile,&moduleError) && canvas->Modules().size()==1);
+    canvas->NewDocument();
+    canvas->SetPlaceType(SW_INPUT);
+    Mouse(canvas, wxEVT_LEFT_DOWN, 200, 200);
+    canvas->SetSelectMode();
+    canvas->SelectAll();
+    const wxString label = wxString::FromUTF8(u8"输入 A");
+    Check("label edit changes selected component", canvas->SetSelectedLabel(label) && canvas->GetSelected()->label == label);
+    Check("label edit can be undone and redone", canvas->Undo() && canvas->Redo());
+    Check("label survives saving and preserves reference", canvas->SaveFile(finalFile) && LoadCircuit(finalFile,cs,ws,next) && cs.size()==1 && cs[0].id==1 && cs[0].label==label);
     canvas->NewDocument();Check("standalone module import succeeds",canvas->ImportModules(moduleFile,&moduleError) && canvas->Modules().size()==1);
     Check("import library can be undone",canvas->Undo() && canvas->Modules().empty());canvas->Redo();
     Check("module definition can be deleted", canvas->DeleteModuleDefinition("Inverter") && canvas->Modules().empty());

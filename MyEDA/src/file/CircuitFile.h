@@ -69,6 +69,7 @@ inline wxString CircuitToJson(const wxVector<Component>& comps,const wxVector<Wi
         const auto& c=comps[i];
         s+=wxString::Format("    {\"id\":%d,\"type\":\"%s\",\"x\":%d,\"y\":%d,\"state\":%d,\"name\":\"%s\",\"truth\":%d",
             c.id,GateTypeName(c.type),c.x,c.y,c.state?1:0,JsonEscape(c.customName),c.truth);
+        if (!c.label.empty()) s += ",\"label\":\"" + JsonEscape(c.label) + "\"";
         if(c.type==GATE_MODULE && c.module)s+=",\"module\":"+SubcircuitToJson(*c.module);
         s+=wxString::Format("}%s\n",i+1<comps.size()?",":"");
     }
@@ -123,6 +124,7 @@ inline bool JsonToCircuit(const std::string& text,
             if(state.kind!=ProjectJson::Value::Boolean && state.kind!=ProjectJson::Value::Number) return false;
             if(state.number!=0 && state.number!=1) return false;
             c.state=state.number!=0;
+            if (value.has("label")) c.label = wxString::FromUTF8(value.at("label").string().c_str());
             if(value.has("name")) c.customName=wxString::FromUTF8(value.at("name").string().c_str());
             if(value.has("truth")) c.truth=value.at("truth").integer();
             if(c.truth<0 || c.truth>15) return false;

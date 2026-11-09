@@ -1,4 +1,5 @@
 #include "ui/MyFrame.h"
+#include <wx/textdlg.h>
 #include <wx/stdpaths.h>
 #include <wx/filename.h>
 #include <wx/bmpbndl.h>
@@ -238,6 +239,23 @@ void MyFrame::CreateClientArea()
                                   wxLC_REPORT | wxLC_SINGLE_SEL);
     propertyList->InsertColumn(0, "属性", wxLIST_FORMAT_LEFT, 90);
     propertyList->InsertColumn(1, "值", wxLIST_FORMAT_LEFT, 130);
+    propertyList->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent& event) {
+        int flags = 0;
+        const long row = propertyList->HitTest(event.GetPosition(), flags);
+        if (row < 0 || propertyList->GetItemText(row) != "标签") {
+            event.Skip();
+            return;
+        }
+        if (canvas->IsSimRunning()) {
+            SetStatusText("请先停止仿真，再修改标签");
+            return;
+        }
+        const auto* component = canvas->GetSelected();
+        if (!component) return;
+        wxTextEntryDialog dialog(this, "输入元件标签（最多 40 个字符，留空可清除）", "修改标签", component->label);
+        dialog.SetMaxLength(40);
+        if (dialog.ShowModal() == wxID_OK) canvas->SetSelectedLabel(dialog.GetValue());
+    });
 
     // 画布上选中/改动元件时,回调这里刷新属性表
     canvas->SetSelectionCallback([this]() { RefreshPropertyTable(); UpdateTitle(); });
@@ -308,7 +326,8 @@ void MyFrame::RefreshPropertyTable()
         propertyList->SetItem(r, 1, v);
     };
 
-    addRow("名称", wxString::Format("U%d", c->id));
+    addRow("位号", wxString::Format("U%d", c->id));
+    addRow("标签", c->label.empty() ? wxString("点击填写") : c->label);
     addRow("类型", (c->type == GATE_CUSTOM)
                             ? wxString::Format("自定义(%s)", c->customName)
                             : GateTypeName(c->type));

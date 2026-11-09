@@ -791,6 +791,18 @@ Component* DrawingCanvas::FindById(int id)
     return nullptr;
 }
 
+bool DrawingCanvas::SetSelectedLabel(const wxString& label)
+{
+    if (readOnly || simRunning || sel.size() != 1) return false;
+    auto* component = FindById(*sel.begin());
+    if (!component || label.length() > 40) return false;
+    if (component->label == label) return true;
+    PushUndo();
+    component->label = label;
+    NotifyChanged();
+    return true;
+}
+
 const Component* DrawingCanvas::GetSelected() const
 {
     if (sel.size() != 1) return nullptr;   // 多选时不返回单个(属性表会显示"N 个元件")
@@ -995,8 +1007,10 @@ void DrawingCanvas::DrawGate(wxDC& dc, const Component& c)
         dc.SetFont(previousFont);dc.SetTextForeground(*wxBLACK);
     }
 
-    // 编号标签,比如 U1
-    dc.DrawText(wxString::Format("U%d", c.id), x - 12, c.type==GATE_MODULE ? y-ModuleHeight(c)/2-18 : y-36);
+    wxString caption = wxString::Format("U%d", c.id);
+    if (!c.label.empty()) caption += "  " + c.label;
+    const int labelY = c.type == GATE_MODULE ? y - ModuleHeight(c)/2 - 18 : y - 36;
+    dc.DrawText(caption, x - dc.GetTextExtent(caption).x/2, labelY);
 }
 
 // ================================================================

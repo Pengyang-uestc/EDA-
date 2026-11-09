@@ -30,6 +30,7 @@ struct Component {
     int x = 0, y = 0;      // 元件中心在画布上的坐标
     int id = 0;            // 全局编号 1,2,3...(显示为 U1、U2...)
     bool state = false;    // 开关的开/关(其他元件不用)
+    wxString label;        // 可编辑的画布标签
     wxString customName;   // 自定义元件的名字(其他类型为空)
     ModulePtr module;
     int truth = 0;         // 自定义元件真值表:bit(a*2+b) = 该输入组合下的输出

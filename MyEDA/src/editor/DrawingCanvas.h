@@ -7,6 +7,7 @@
 #include "core/Component.h"
 #include "file/CircuitFile.h"
 #include "file/NetlistExport.h"
+#include "file/GedaExport.h"
 #include "file/KicadSchExport.h"
 #include "sim/Simulation.h"
 
@@ -48,6 +49,10 @@ public:
     // 导出/导入 KiCad 网表(任务5)
     bool ExportNetlist(const wxString& path) { return SaveNetlist(path, components, wires); }
     bool ImportNetlist(const wxString& path);
+
+    // 导出 gEDA pcb 对接文件(老师任务5定标):.net 网表 + .pcb 初始布局
+    bool ExportGedaNet(const wxString& path) { return SaveGedaNetlist(path, components, wires); }
+    bool ExportGedaPcb(const wxString& path) { return SaveGedaPcb(path, components, wires); }
 
     // 导出 KiCad 原理图(.kicad_sch):在 KiCad 里打开后按 F8 即可"从原理图更新 PCB"
     bool ExportKicadSch(const wxString& path) {

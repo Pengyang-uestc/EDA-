@@ -30,6 +30,8 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnSaveAs,         this, ID_MENU_SAVE_AS);
     Bind(wxEVT_MENU, &MyFrame::OnExportNetlist,  this, ID_MENU_EXPORT_NETLIST);
     Bind(wxEVT_MENU, &MyFrame::OnExportKicadSch,  this, ID_MENU_EXPORT_SCH);
+    Bind(wxEVT_MENU, &MyFrame::OnExportGedaNet,   this, ID_MENU_EXPORT_GEDA_NET);
+    Bind(wxEVT_MENU, &MyFrame::OnExportGedaPcb,   this, ID_MENU_EXPORT_GEDA_PCB);
     Bind(wxEVT_MENU, &MyFrame::OnImportNetlist,  this, ID_MENU_IMPORT_NETLIST);
     Bind(wxEVT_MENU, &MyFrame::OnUndo,           this, ID_MENU_UNDO);
     Bind(wxEVT_MENU, &MyFrame::OnRedo,           this, ID_MENU_REDO);
@@ -78,6 +80,8 @@ void MyFrame::CreateMenuBar()
     fileMenu->Append(ID_MENU_IMPORT_NETLIST, "导入网表(&I)...", "导入标准网表文件");
     fileMenu->Append(ID_MENU_EXPORT_NETLIST, "导出网表(&E)...", "导出标准网表文件（供 PCB 软件使用）");
     fileMenu->Append(ID_MENU_EXPORT_SCH, "导出 KiCad 原理图(&K)...", "导出 .kicad_sch，可在 KiCad 里打开并按 F8 更新 PCB");
+    fileMenu->Append(ID_MENU_EXPORT_GEDA_NET, "导出 gEDA 网表(&G)...", "导出 gEDA pcb 可读的 .net 网表（任务5定标格式）");
+    fileMenu->Append(ID_MENU_EXPORT_GEDA_PCB, "导出 gEDA 初始布局(&P)...", "导出 .pcb 初始布局（可在 gEDA pcb 里加载、飞线、自动布线）");
     fileMenu->AppendSeparator();
     fileMenu->Append(wxID_EXIT,         "退出(&Q)\tCtrl+Q",  "退出程序");
     menuBar->Append(fileMenu, "文件(&F)");
@@ -608,6 +612,32 @@ void MyFrame::OnExportNetlist(wxCommandEvent&)
     else
         SetStatusText("导出失败!");
 }
+// gEDA pcb 对接(任务5老师定标):导出 .net 网表与 .pcb 初始布局,
+// 在 gEDA pcb 里 File→Load layout + Load netlist,按 O 飞线后可自动布线。
+// 操作步骤见 docs/使用指南/gEDA对接指南.md
+void MyFrame::OnExportGedaNet(wxCommandEvent&)
+{
+    wxFileDialog dlg(this, "导出 gEDA 网表", wxGetCwd(), "未命名.net",
+                     "gEDA 网表 (*.net)|*.net",
+                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dlg.ShowModal() != wxID_OK) return;
+    if (canvas->ExportGedaNet(dlg.GetPath()))
+        SetStatusText("gEDA 网表已导出:" + dlg.GetPath());
+    else
+        SetStatusText("导出失败!请检查连线(存在多驱动或悬空错误)");
+}
+void MyFrame::OnExportGedaPcb(wxCommandEvent&)
+{
+    wxFileDialog dlg(this, "导出 gEDA 初始布局", wxGetCwd(), "未命名.pcb",
+                     "gEDA PCB (*.pcb)|*.pcb",
+                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
+    if (dlg.ShowModal() != wxID_OK) return;
+    if (canvas->ExportGedaPcb(dlg.GetPath()))
+        SetStatusText("gEDA 初始布局已导出:" + dlg.GetPath());
+    else
+        SetStatusText("导出失败!请检查连线(存在多驱动或悬空错误)");
+}
+
 void MyFrame::OnImportNetlist(wxCommandEvent&)
 {
     if (!ConfirmDiscardChanges()) return;

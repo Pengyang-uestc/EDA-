@@ -26,6 +26,8 @@ enum {
     ID_MENU_RESET_VIEW,
     ID_MENU_CUSTOM_GATE,   // 工程菜单:新建自定义元件
     ID_MENU_EXPORT_SCH,    // 文件菜单:导出 KiCad 原理图
+    ID_MENU_EXPORT_GEDA_NET, // 文件菜单:导出 gEDA 网表(任务5定标)
+    ID_MENU_EXPORT_GEDA_PCB, // 文件菜单:导出 gEDA 初始 PCB(任务5定标)
     ID_MENU_MANAGE_CUSTOM, // 工程菜单:管理自定义元件
     ID_MENU_ANNOTATE,      // 工程菜单:原理图位号重排
     ID_MENU_PACK_MODULE, ID_MENU_MANAGE_MODULE, ID_MENU_IMPORT_MODULE, ID_MENU_EXPORT_MODULE, ID_MENU_INSPECT_MODULE,
@@ -86,6 +88,8 @@ private:
     void OnSave(wxCommandEvent& event);
     void OnSaveAs(wxCommandEvent& event);
     void OnExportNetlist(wxCommandEvent& event);
+    void OnExportGedaNet(wxCommandEvent& event);   // 文件菜单:导出 gEDA 网表
+    void OnExportGedaPcb(wxCommandEvent& event);   // 文件菜单:导出 gEDA 初始布局
     void OnExportKicadSch(wxCommandEvent& event);
     void OnImportNetlist(wxCommandEvent& event);
     void OnUndo(wxCommandEvent& event);

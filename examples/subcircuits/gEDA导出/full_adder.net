@@ -1,0 +1,10 @@
+unnamed_net1	U1-1 U7-1 U8-1 
+unnamed_net2	U2-1 U7-2 U8-2 
+unnamed_net3	U3-1 U9-2 U10-2 
+unnamed_net4	U5-1 U9-3 
+unnamed_net5	U6-1 U11-3 
+unnamed_net6	U7-3 U9-1 U10-1 
+unnamed_net7	U8-3 U11-1 
+unnamed_net8	U10-3 U11-2 
+GND	U7-7 U8-7 U9-7 U10-7 U11-7 
+Vcc	U7-14 U8-14 U9-14 U10-14 U11-14 

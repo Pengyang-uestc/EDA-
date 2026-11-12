@@ -7,6 +7,7 @@
 #include "file/CircuitFile.h"
 #include "file/NetlistExport.h"
 #include "file/KicadSchExport.h"
+#include "file/GedaExport.h"
 
 int failures = 0;
 void Check(const char* name, int got, int want) {
@@ -53,6 +54,46 @@ int main(int argc, char** argv) {
         out.close();
         std::cout << "已导出: " << argv[3] << "  (元件 " << cs.size()
                   << " 个, 网络 " << BuildNets(ws).size() << " 个)\n";
+        return 0;
+    }
+
+    // 小工具:test_sim.exe --export-geda-net 电路.eda 输出.net
+    // gEDA pcb 网表(任务5老师定标):每行 "网络名<TAB>U1-3 U2-5 ..."
+    if (argc > 3 && std::string(argv[1]) == "--export-geda-net") {
+        std::ifstream in(argv[2], std::ios::binary);
+        if (!in) { std::cout << "打不开文件: " << argv[2] << "\n"; return 1; }
+        std::string buf((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+        in.close();
+        wxVector<Component> cs; wxVector<Wire> ws; int next = 1;
+        JsonToCircuit(buf, cs, ws, next);
+        wxString text = ExportGedaNetlistText(cs, ws);
+        if (text.empty()) { std::cout << "导出失败: 电路校验未通过\n"; return 1; }
+        std::ofstream out(argv[3], std::ios::binary);
+        std::string t((const char*)text.utf8_str());
+        out.write(t.data(), (std::streamsize)t.size());
+        out.close();
+        std::cout << "已导出 gEDA 网表: " << argv[3] << "\n";
+        return 0;
+    }
+
+    // 小工具:test_sim.exe --export-geda-pcb 电路.eda 输出.pcb
+    // gEDA pcb 初始布局(任务5老师定标):封装已按位号放好,加载后按 O 飞线
+    if (argc > 3 && std::string(argv[1]) == "--export-geda-pcb") {
+        std::ifstream in(argv[2], std::ios::binary);
+        if (!in) { std::cout << "打不开文件: " << argv[2] << "\n"; return 1; }
+        std::string buf((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
+        in.close();
+        wxVector<Component> cs; wxVector<Wire> ws; int next = 1;
+        JsonToCircuit(buf, cs, ws, next);
+        wxString text = ExportGedaPcbText(cs, ws);
+        if (text.empty()) { std::cout << "导出失败: 电路校验未通过\n"; return 1; }
+        std::ofstream out(argv[3], std::ios::binary);
+        std::string t((const char*)text.utf8_str());
+        out.write(t.data(), (std::streamsize)t.size());
+        out.close();
+        std::cout << "已导出 gEDA 初始布局: " << argv[3] << "  (元件 " << cs.size() << " 个)\n";
         return 0;
     }
 
@@ -262,6 +303,59 @@ int main(int argc, char** argv) {
         while ((p2 = st.find("(wire", p2)) != std::string::npos) { wireCount++; p2 += 5; }
         Check("KICAD-SCH wires", wireCount, 6);
         Check("KICAD-SCH no literal percent-s", st.find("%s") == std::string::npos ? 1 : 0, 1);
+    }
+
+    // ============ gEDA pcb 对接(任务5老师定标) ============
+    // 半加器 fixture:U1/U2 开关(SIP2)、U3 异或、U4 与门(DIP14)、U5/U6 灯(SIP2)
+    // 4 个信号网络 + 自动补的 GND/Vcc;DIP14 引脚约定 1,2=输入 3=输出 7=GND 14=Vcc
+    {
+        wxVector<Component> hc; wxVector<Wire> hw;
+        const GateType hcType[6] = { SW_INPUT, SW_INPUT, GATE_XOR, GATE_AND, SW_LED, SW_LED };
+        for (int i = 0; i < 6; i++) { Component c; c.id = i + 1; c.type = hcType[i]; hc.push_back(c); }
+        hw.push_back({1, 0, 3, 0}); hw.push_back({2, 0, 3, 1});
+        hw.push_back({1, 0, 4, 0}); hw.push_back({2, 0, 4, 1});
+        hw.push_back({3, 2, 5, 0}); hw.push_back({4, 2, 6, 0});
+        wxString net = ExportGedaNetlistText(hc, hw);
+        std::string gs((const char*)net.utf8_str());
+
+        int lines = 0;
+        for (size_t i = 0; i < gs.size(); i++) if (gs[i] == '\n') lines++;
+        Check("GEDA-NET line count (4 signal + GND + Vcc)", lines, 6);
+
+        Check("GEDA-NET fanout net", gs.find("\tU1-1 U3-1 U4-1 \n") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-NET sum net uses gate output pin 3", gs.find("\tU3-3 U5-1 \n") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-NET carry net", gs.find("\tU4-3 U6-1 \n") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-NET B net", gs.find("\tU2-1 U3-2 U4-2 \n") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-NET auto GND", gs.find("GND\tU3-7 U4-7 \n") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-NET auto Vcc", gs.find("Vcc\tU3-14 U4-14 \n") != std::string::npos ? 1 : 0, 1);
+        wxString net2 = ExportGedaNetlistText(hc, hw);
+        Check("GEDA-NET deterministic", (net == net2) ? 1 : 0, 1);
+
+        wxString pcb = ExportGedaPcbText(hc, hw);
+        std::string ps((const char*)pcb.utf8_str());
+        Check("GEDA-PCB header", ps.rfind("# release: pcb", 0) == 0 &&
+                                   ps.find("FileVersion[20070407]") != std::string::npos ? 1 : 0, 1);
+        int elements = 0;
+        for (size_t i = 0; i + 8 <= ps.size(); i++)
+            if (ps.compare(i, 8, "Element(") == 0) elements++;
+        Check("GEDA-PCB element count", elements, 6);
+        int pins = 0;
+        for (size_t i = 0; i + 4 <= ps.size(); i++)
+            if (ps.compare(i, 4, "Pin(") == 0) pins++;
+        Check("GEDA-PCB pad count (2x14 DIP + 4x2 SIP)", pins, 36);
+        Check("GEDA-PCB dip14 template", ps.find("Element(0x00 \"DIP14\" \"U3\"") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-PCB sip2 template", ps.find("Element(0x00 \"SIP2\" \"U1\"") != std::string::npos ? 1 : 0, 1);
+        int depth = 0, minD = 0;
+        for (size_t i = 0; i < ps.size(); i++) {
+            if (ps[i] == '(') depth++;
+            else if (ps[i] == ')') { depth--; if (depth < minD) minD = depth; }
+        }
+        Check("GEDA-PCB brackets balanced", (depth == 0 && minD >= 0) ? 1 : 0, 1);
+        Check("GEDA-PCB layer stack", ps.find("Layer(1 \"top\")") != std::string::npos &&
+                                          ps.find("Layer(6 \"bottom\")") != std::string::npos ? 1 : 0, 1);
+        // 网格排布:每个元件位置不同(老师样例是重叠的,pcb 里要手动 Disperse;我们直接铺开)
+        Check("GEDA-PCB grid row0", ps.find("Element(0x00 \"DIP14\" \"U3\" \"XOR\" 1100 100 ") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-PCB grid row1", ps.find("Element(0x00 \"DIP14\" \"U4\" \"AND\" 100 1000 ") != std::string::npos ? 1 : 0, 1);
     }
 
     // ============ 互操作:解析 KiCad 自己导出的网表 ============

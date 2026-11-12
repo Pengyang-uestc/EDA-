@@ -354,8 +354,8 @@ int main(int argc, char** argv) {
         Check("GEDA-PCB layer stack", ps.find("Layer(1 \"top\")") != std::string::npos &&
                                           ps.find("Layer(6 \"bottom\")") != std::string::npos ? 1 : 0, 1);
         // 网格排布:每个元件位置不同(老师样例是重叠的,pcb 里要手动 Disperse;我们直接铺开)
-        Check("GEDA-PCB grid row0", ps.find("Element(0x00 \"DIP14\" \"U3\" \"XOR\" 1100 100 ") != std::string::npos ? 1 : 0, 1);
-        Check("GEDA-PCB grid row1", ps.find("Element(0x00 \"DIP14\" \"U4\" \"AND\" 100 1000 ") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-PCB grid row0", ps.find("Element(0x00 \"DIP14\" \"U3\" \"XOR\" 180000 40000 ") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-PCB grid row1", ps.find("Element(0x00 \"DIP14\" \"U4\" \"AND\" 60000 130000 ") != std::string::npos ? 1 : 0, 1);
     }
 
     // ============ 互操作:解析 KiCad 自己导出的网表 ============

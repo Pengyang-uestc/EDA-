@@ -102,35 +102,40 @@ inline wxString ExportGedaPcbText(const wxVector<Component>& comps, const wxVect
     int idx = 0;
     for (size_t i = 0; i < flat.size(); i++) {
         const Component& c = flat[i];
-        const int x = 100 + (int)(idx % 3) * 500;             // 每行 3 个,间距大于封装外形
-        const int y = 100 + (int)(idx / 3) * 900;
+        // pcb 文件坐标是 centimil(1/100 mil),DIP14 外形约 40000x70000(400x700 mil)
+        // → 网格步距 60000x90000(600x900 mil),从 (60000,40000) 起铺开互不重叠
+        const int x = 60000 + (int)(idx % 3) * 60000;         // 每行 3 个
+        const int y = 40000 + (int)(idx / 3) * 90000;
         const wxString value = PartName(c);
         s += wxString::Format("Element(0x00 \"%s\" \"U%d\" \"%s\" %d %d 3 100 0x00)\n(\n",
                               GedaFootprintName(c), c.id, value.utf8_str(), x, y);
         if (GedaIsChip(c)) {
+            // 关键:.pcb 里的 Pin/ElementLine 坐标是板上"绝对坐标"——gsch2pcb 堆叠元件时
+            // 引脚本来就重叠,靠 pcb 里 Disperse 分开;我们直接按网格平移,不用 Disperse。
+            // 几何取老师样例再 ×100:DIP14 脚距 10000=100 mil、焊盘 6000=60 mil(centimil)
             for (int pin = 1; pin <= 7; pin++)                 // 左列 1..7,自上而下;首脚标志 0x101(老师样例)
-                s += wxString::Format("\tPin(50 %d 60 28 \"%d\" 0x%s)\n", 50 + (pin - 1) * 100, pin,
+                s += wxString::Format("\tPin(%d %d 6000 2800 \"%d\" 0x%s)\n", x + 5000, y + (pin - 1) * 10000 + 5000, pin,
                                       pin == 1 ? "101" : "01");
             s += "\n";
             for (int pin = 8; pin <= 14; pin++)                // 右列 8..14,自下而上
-                s += wxString::Format("\tPin(350 %d 60 28 \"%d\" 0x01)\n", 650 - (pin - 8) * 100, pin);
+                s += wxString::Format("\tPin(%d %d 6000 2800 \"%d\" 0x01)\n", x + 35000, y + (14 - pin) * 10000 + 5000, pin);
             s += "\n";
-            s += "\tElementLine(0 0 0 700 10)\n"
-                 "\tElementLine(0 700 400 700 10)\n"
-                 "\tElementLine(400 700 400 0 10)\n"
-                 "\tElementLine(0 0 150 0 10)\n"
-                 "\tElementLine(250 0 400 0 10)\n"
-                 "\tElementArc(200 0 50 50 0 180 10)\n"
-                 "\tMark(50 50)\n";
+            s += wxString::Format("\tElementLine(%d %d %d %d 10)\n", x, y, x, y + 70000)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x, y + 70000, x + 40000, y + 70000)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x + 40000, y + 70000, x + 40000, y)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x, y, x + 15000, y)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x + 25000, y, x + 40000, y)
+                 + wxString::Format("\tElementArc(%d %d 5000 5000 0 180 10)\n", x + 20000, y)
+                 + wxString::Format("\tMark(%d %d)\n", x + 5000, y + 5000);
         } else {
-            s += "\tPin(50 50 60 28 \"1\" 0x101)\n"
-                 "\tPin(50 150 60 28 \"2\" 0x01)\n"
-                 "\n"
-                 "\tElementLine(0 0 0 200 10)\n"
-                 "\tElementLine(0 200 100 200 10)\n"
-                 "\tElementLine(100 200 100 0 10)\n"
-                 "\tElementLine(0 0 100 0 10)\n"
-                 "\tMark(50 50)\n";
+            s += wxString::Format("\tPin(%d %d 6000 2800 \"1\" 0x101)\n", x + 5000, y + 5000)
+                 + wxString::Format("\tPin(%d %d 6000 2800 \"2\" 0x01)\n", x + 5000, y + 15000)
+                 + "\n"
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x, y, x, y + 20000)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x, y + 20000, x + 10000, y + 20000)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x + 10000, y + 20000, x + 10000, y)
+                 + wxString::Format("\tElementLine(%d %d %d %d 10)\n", x, y, x + 10000, y)
+                 + wxString::Format("\tMark(%d %d)\n", x + 5000, y + 5000);
         }
         s += ")\n\n";
         idx++;

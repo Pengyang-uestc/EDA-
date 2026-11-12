@@ -1,0 +1,10 @@
+# PcbXY Version 1.0
+# Date: Wed Nov 11 14:51:04 2026 UTC
+# Author: 
+# Title: (unknown) - PCB X-Y
+# RefDes, Description, Value, X, Y, rotation, top/bottom
+# X,Y in mil.  rotation in degrees.
+# --------------------------------------------
+U3,"DIP14","unknown",2150.00,2980.00,0,top
+U1,"DIP14","unknown",1140.00,4020.00,0,top
+U2,"DIP14","unknown",3140.00,4050.00,0,top

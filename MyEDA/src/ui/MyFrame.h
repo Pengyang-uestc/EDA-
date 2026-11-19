@@ -22,6 +22,7 @@ enum {
     ID_MENU_DELETE,
     ID_MENU_SIMULATE_START,
     ID_MENU_SIMULATE_STOP,
+    ID_MENU_WAVEFORM,      // 仿真菜单:仿真波形窗口
     ID_MENU_ABOUT,
     ID_MENU_RESET_VIEW,
     ID_MENU_CUSTOM_GATE,   // 工程菜单:新建自定义元件
@@ -76,6 +77,7 @@ private:
     DrawingCanvas* canvas;       // 中:绘图区
     wxListCtrl* propertyList;    // 右:属性表
     wxTimer simTimer;            // 仿真步进定时器
+    class WaveformDialog* waveformDlg = nullptr;   // 仿真波形窗口(单例,关闭时置空)
 
     // 事件处理函数
     void OnPackModule(wxCommandEvent&);
@@ -99,6 +101,7 @@ private:
     void OnPaste(wxCommandEvent& event);
     void OnDelete(wxCommandEvent& event);
     void OnSimulateStart(wxCommandEvent& event);
+    void OnShowWaveform(wxCommandEvent& event);   // 仿真菜单:仿真波形窗口
     void OnSimulateStop(wxCommandEvent& event);
     void OnCustomGate(wxCommandEvent& event);
     void OnManageCustom(wxCommandEvent& event);

@@ -7,6 +7,7 @@
 #include <wx/settings.h>
 #include <wx/tokenzr.h>
 #include <wx/choicdlg.h>
+#include "ui/WaveformDialog.h"
 
 MyFrame::MyFrame(const wxString& title)
     : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(1200, 800))
@@ -47,7 +48,11 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnSelectAll,      this, ID_MENU_SELECT_ALL);
     Bind(wxEVT_CLOSE_WINDOW, &MyFrame::OnClose,  this);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { canvas->ResetView(); SetStatusText("视图已复位为 100%"); }, ID_MENU_RESET_VIEW);
-    simTimer.Bind(wxEVT_TIMER, [this](wxTimerEvent&) { canvas->SimTick(); RefreshPropertyTable(); });
+    simTimer.Bind(wxEVT_TIMER, [this](wxTimerEvent&) {
+        canvas->SimTick();
+        RefreshPropertyTable();
+        if (waveformDlg) waveformDlg->Refresh();   // 波形窗口开着时跟随刷新
+    });
 
     Bind(wxEVT_MENU, &MyFrame::OnAbout,          this, ID_MENU_ABOUT);
     Bind(wxEVT_MENU, &MyFrame::OnExit,           this, wxID_EXIT);
@@ -117,6 +122,8 @@ void MyFrame::CreateMenuBar()
     wxMenu* simulateMenu = new wxMenu();
     simulateMenu->Append(ID_MENU_SIMULATE_START, "开始仿真(&S)\tF5", "开始信号传播仿真");
     simulateMenu->Append(ID_MENU_SIMULATE_STOP,  "停止仿真(&T)\tF6", "停止仿真");
+    simulateMenu->AppendSeparator();
+    simulateMenu->Append(ID_MENU_WAVEFORM, "仿真波形(&W)...	F7", "查看各元件输出随时序步进变化的波形图");
     menuBar->Append(simulateMenu, "仿真(&S)");
 
     // ---------- 窗口 ----------
@@ -671,6 +678,15 @@ void MyFrame::OnDelete(wxCommandEvent&)
     }
 }
 void MyFrame::OnSimulateStart(wxCommandEvent&){ canvas->StartSim(); simTimer.Start(500); SetStatusText("仿真自动步进中"); }
+
+// 仿真波形窗口(任务 A3): 单例,随仿真步进自动刷新
+void MyFrame::OnShowWaveform(wxCommandEvent&)
+{
+    if (waveformDlg) { waveformDlg->Raise(); return; }
+    waveformDlg = new WaveformDialog(this, canvas);
+    waveformDlg->Bind(wxEVT_DESTROY, [this](wxWindowDestroyEvent&){ waveformDlg = nullptr; });
+    waveformDlg->Show();
+}
 void MyFrame::OnSimulateStop(wxCommandEvent&) { simTimer.Stop(); canvas->StopSim(); SetStatusText("仿真已停止"); }
 void MyFrame::OnAbout(wxCommandEvent&)
 {

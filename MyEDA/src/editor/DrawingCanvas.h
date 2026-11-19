@@ -65,10 +65,18 @@ public:
     }
 
     // 逻辑仿真(任务6)
-    void StartSim() { CancelWirePreview(); simRunning = true; simTick=0;prevClk.clear(); RunSim(); for(const auto& c:components)if(c.type==GATE_DFF)prevClk[c.id]=GetPinValue(c.id,1); NotifyChanged(); }
+    void StartSim() { CancelWirePreview(); simRunning = true; simTick=0;prevClk.clear(); ClearWaveHistory(); RunSim(); for(const auto& c:components)if(c.type==GATE_DFF)prevClk[c.id]=GetPinValue(c.id,1); CollectWaveSample(); NotifyChanged(); }
     void StopSim()  { simRunning = false; NotifyChanged(); }
     void SimTick();
     bool IsSimRunning() const { return simRunning; }
+
+    // 仿真波形:每个 SimTick 采集一次全部元件输出值,供波形对话框画时序图
+    void CollectWaveSample();                    // 追加一次采样(SimTick 后调用)
+    void RebuildWaveTraces();                    // 按 components 重建轨迹表
+    void ClearWaveHistory() { waveNames.clear(); waveCompIds.clear(); waveHistory.clear(); }
+    wxVector<wxString> waveNames;                // 轨迹名(位号+型号)
+    wxVector<int> waveCompIds;                   // 轨迹对应元件 id
+    wxVector<wxVector<int>> waveHistory;         // waveHistory[步][轨迹] = 0/1
 
     // 编辑操作(撤销/重做/复制/剪切/粘贴)
     bool Undo();

@@ -536,6 +536,7 @@ void DrawingCanvas::OnKeyDown(wxKeyEvent& e)
 void DrawingCanvas::NewDocument()
 {
     ResetView();
+    readOnly = false;   // 子电路查看器会置只读,新建/打开必须恢复可编辑(否则放置被静默拦截)
     components.clear();
     customDefs.clear();
     moduleDefs.clear();
@@ -1058,7 +1059,29 @@ void DrawingCanvas::RunSim()
 void DrawingCanvas::SimTick() {
     if(!simRunning)return;
     SimulationTick(components,wires,simOut,simTick,prevClk);
+    CollectWaveSample();
     NotifyChanged();
+}
+
+// 仿真波形:重建轨迹表(排除无输出脚的 LED 和子电路)并追加一次采样。
+// 轨迹按元件顺序稳定生成,历史最多留 600 步,防止长时间仿真内存膨胀。
+void DrawingCanvas::RebuildWaveTraces() {
+    waveNames.clear(); waveCompIds.clear();
+    for(size_t i=0;i<components.size();++i) {
+        const Component& c = components[i];
+        if(c.type==SW_LED || c.type==GATE_MODULE) continue;   // 无输出脚,不画
+        waveNames.push_back(wxString::Format("U%d %s", c.id, PartName(c)));
+        waveCompIds.push_back(c.id);
+    }
+}
+
+void DrawingCanvas::CollectWaveSample() {
+    RebuildWaveTraces();
+    wxVector<int> row;
+    for(size_t i=0;i<waveCompIds.size();++i)
+        row.push_back(GetOutputValue(waveCompIds[i]));
+    waveHistory.push_back(row);
+    if(waveHistory.size() > 600) waveHistory.erase(waveHistory.begin());
 }
 
 int DrawingCanvas::GetOutputValue(int compId) const

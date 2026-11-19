@@ -304,6 +304,27 @@ int main(int argc, char** argv) {
     Check("internal viewer prevents deletion",!canvas->DeleteSelected());
     Mouse(canvas,wxEVT_LEFT_DOWN,500,400);Mouse(canvas,wxEVT_LEFT_UP,500,400);canvas->SaveFile(finalFile);LoadCircuit(finalFile,cs,ws,next);
     Check("internal viewer prevents placement",cs.size()==3 && ws.size()==2);
+
+    // 仿真波形采集(任务 A3):放一个时钟源,时钟每步翻转,历史应记录 0/1 交替方波
+    canvas->NewDocument();
+    canvas->SetPlaceType(SW_CLOCK); Mouse(canvas,wxEVT_LEFT_DOWN,200,200);
+    canvas->ClearWaveHistory();
+    canvas->StartSim();
+    bool waveReady = !canvas->waveCompIds.empty() && !canvas->waveHistory.empty()
+                     && !canvas->waveHistory.back().empty();
+    Check("clock placed and wave sampling started",waveReady);
+    if (waveReady) {
+        int firstSample = canvas->waveHistory.back()[0];
+        canvas->SimTick(); canvas->SimTick(); canvas->SimTick();
+        Check("wave history grows with ticks",(int)canvas->waveHistory.size()>=4);
+        Check("wave traces contain clock",canvas->waveNames.size()==1 && canvas->waveNames[0].Contains("CLK"));
+        Check("wave records clock toggling",
+              !canvas->waveHistory.back().empty() && canvas->waveHistory.back()[0] != firstSample);
+        Check("wave history deterministic on restart",(canvas->ClearWaveHistory(),canvas->StartSim(),
+              canvas->waveHistory.size()==1 && !canvas->waveHistory.back().empty()));
+    }
+    canvas->StopSim();
+
     wxRemoveFile(moduleFile);
 
     wxRemoveFile(finalFile);

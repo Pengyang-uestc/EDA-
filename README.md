@@ -37,6 +37,7 @@ cmake --install MyEDA/build --config Release --prefix release/MyEDA
 
 1. 启动 MyEDA，通过「文件 → 打开」载入半加器工程。 [half_adder.eda](examples/half_adder/half_adder.eda)
 2. 按 **F5** 开始仿真。分别切换两个输入开关，观察和位与进位。两个输入均为 1 时，和位为 0、进位为 1。
+3. 按 **F7** 打开仿真波形窗口，以时序图回看各步进的 0/1 变化。
 3. 按 **F6** 停止仿真。选中包含开关、逻辑门、连线和指示灯的完整电路，通过「工程 → 将选中电路封装为元件」生成可复用的半加器。 [子电路封装指南](docs/使用指南/子电路封装指南.md)
 4. 打开由两个半加器组成的全加器，或者打开嵌套示例，选中元件后查看内部结构。 [全加器](examples/subcircuits/full_adder.eda) · [嵌套全加器](examples/subcircuits/nested_full_adder.eda)
 5. 在「文件」菜单中导出网表或 KiCad 原理图，查看器件及引脚之间的连接。 [网表模型说明](docs/开发协作/网表模型.md)

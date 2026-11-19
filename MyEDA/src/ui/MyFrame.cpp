@@ -123,7 +123,7 @@ void MyFrame::CreateMenuBar()
     simulateMenu->Append(ID_MENU_SIMULATE_START, "开始仿真(&S)\tF5", "开始信号传播仿真");
     simulateMenu->Append(ID_MENU_SIMULATE_STOP,  "停止仿真(&T)\tF6", "停止仿真");
     simulateMenu->AppendSeparator();
-    simulateMenu->Append(ID_MENU_WAVEFORM, "仿真波形(&W)...	F7", "查看各元件输出随时序步进变化的波形图");
+    simulateMenu->Append(ID_MENU_WAVEFORM, "仿真波形(&W)...	F9", "查看各元件输出随时序步进变化的波形图");
     menuBar->Append(simulateMenu, "仿真(&S)");
 
     // ---------- 窗口 ----------
@@ -682,7 +682,8 @@ void MyFrame::OnSimulateStart(wxCommandEvent&){ canvas->StartSim(); simTimer.Sta
 // 仿真波形窗口(任务 A3): 单例,随仿真步进自动刷新
 void MyFrame::OnShowWaveform(wxCommandEvent&)
 {
-    if (waveformDlg) { waveformDlg->Raise(); return; }
+    SetStatusText("[debug] F7 handler 触发");
+    if (waveformDlg) { waveformDlg->Raise(); SetStatusText("[debug] 已有窗口,拉起"); return; }
     waveformDlg = new WaveformDialog(this, canvas);
     waveformDlg->Bind(wxEVT_DESTROY, [this](wxWindowDestroyEvent&){ waveformDlg = nullptr; });
     waveformDlg->Show();

@@ -45,8 +45,12 @@ s.addText("进阶式挑战性综合项目 I · 结题答辩", { x: 1.15, y: 3.9,
 s.addText([
   { text: "小组成员", options: { color: "9DC3E6", breakLine: true } },
   { text: "丰鹏扬(组长) · 郑晨曦 · 王际超 · 杨谨淳", options: { color: C.white, bold: true } },
-], { x: 1.15, y: 5.1, w: 8, h: 0.9, fontSize: 16, fontFace: F, margin: 0, paraSpaceAfter: 6 });
-s.addText("2026 年 11 月", { x: 1.15, y: 6.3, w: 8, h: 0.4, fontSize: 13, fontFace: F, color: "6E8CAx".slice(0,6) === "6E8CAx" ? "7E9CBC" : "7E9CBC", margin: 0 });
+], { x: 1.15, y: 5.0, w: 8, h: 0.9, fontSize: 16, fontFace: F, margin: 0, paraSpaceAfter: 6 });
+s.addText([
+  { text: "指导教师", options: { color: "9DC3E6", breakLine: true } },
+  { text: "何中海", options: { color: C.white, bold: true } },
+], { x: 1.15, y: 5.85, w: 8, h: 0.9, fontSize: 16, fontFace: F, margin: 0, paraSpaceAfter: 6 });
+s.addText("2026 年 11 月", { x: 1.15, y: 6.75, w: 8, h: 0.4, fontSize: 13, fontFace: F, color: "7E9CBC", margin: 0 });
 
 /* ---------- 2 项目概览 ---------- */
 s = p.addSlide(); s.background = { color: C.white };

@@ -1,0 +1,6 @@
+unnamed_net1	U1-1 U3-1 U4-1 
+unnamed_net2	U2-1 U3-2 U4-2 
+unnamed_net3	U3-3 U5-1 
+unnamed_net4	U4-3 U6-1 
+GND	U3-7 U4-7 
+Vcc	U3-14 U4-14 

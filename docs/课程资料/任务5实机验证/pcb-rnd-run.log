@@ -1,0 +1,12 @@
+I: No preferred unit format info available for 'live.pcb' - will use 'geda/pcb - mainline (centimils)' on save (guessed from consistent unitless centimil input)
+W: File 'live.pcb' has no font information, using default font
+I: Importing PCB netlist live.net
+I: 
+--- netlist check ---
+I: 8 rat lines remaining
+progress: 1/100 Autorouting tracks
+I: 8 of 8 nets successfully routed.
+I: Total added wire length = 17.58800 in, 0 vias added
+E: The geda/pcb file format requires top and bottom silk be the last layers in the list.
+I had to swap layers in your board _before_ the save.
+At the moment this is not undoable!

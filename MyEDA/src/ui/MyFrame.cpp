@@ -41,6 +41,7 @@ MyFrame::MyFrame(const wxString& title)
     Bind(wxEVT_MENU, &MyFrame::OnPaste,          this, ID_MENU_PASTE);
     Bind(wxEVT_MENU, &MyFrame::OnDelete,         this, ID_MENU_DELETE);
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStart,  this, ID_MENU_SIMULATE_START);
+    Bind(wxEVT_MENU, &MyFrame::OnShowWaveform,   this, ID_MENU_WAVEFORM);
     Bind(wxEVT_MENU, &MyFrame::OnSimulateStop,   this, ID_MENU_SIMULATE_STOP);
     Bind(wxEVT_MENU, &MyFrame::OnCustomGate,     this, ID_MENU_CUSTOM_GATE);
     Bind(wxEVT_MENU, &MyFrame::OnManageCustom,   this, ID_MENU_MANAGE_CUSTOM);
@@ -123,7 +124,7 @@ void MyFrame::CreateMenuBar()
     simulateMenu->Append(ID_MENU_SIMULATE_START, "开始仿真(&S)\tF5", "开始信号传播仿真");
     simulateMenu->Append(ID_MENU_SIMULATE_STOP,  "停止仿真(&T)\tF6", "停止仿真");
     simulateMenu->AppendSeparator();
-    simulateMenu->Append(ID_MENU_WAVEFORM, "仿真波形(&W)...	F9", "查看各元件输出随时序步进变化的波形图");
+    simulateMenu->Append(ID_MENU_WAVEFORM, "仿真波形(&W)...	F7", "查看各元件输出随时序步进变化的波形图");
     menuBar->Append(simulateMenu, "仿真(&S)");
 
     // ---------- 窗口 ----------

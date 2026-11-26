@@ -1,4 +1,9 @@
 #include "editor/DrawingCanvas.h"
+#include "ui/WaveformDialog.h"
+#include <climits>
+#include <set>
+#include <vector>
+#include <algorithm>
 #include <wx/dcmemory.h>
 #include <iostream>
 #include <wx/filename.h>
@@ -40,6 +45,28 @@ static int Differences(const wxImage& a, const wxImage& b, wxRect ignored = wxRe
             if (a.GetRed(x,y) != b.GetRed(x,y) || a.GetGreen(x,y) != b.GetGreen(x,y) || a.GetBlue(x,y) != b.GetBlue(x,y)) ++count;
         }
     return count;
+}
+// 截取任意窗口的客户区(和上面的 Capture 同样的办法,只是参数类型更宽)
+static wxImage CaptureWindow(wxWindow* w) {
+    wxSize size = w->GetClientSize();
+    wxBitmap bitmap(size.x, size.y);
+    wxMemoryDC memory(bitmap);
+    wxClientDC screen(w);
+    memory.Blit(0, 0, size.x, size.y, &screen, 0, 0);
+    memory.SelectObject(wxNullBitmap);
+    return bitmap.ConvertToImage();
+}
+static bool IsPen(const wxImage& img, int x, int y) {   // 是不是波形的颜色(与 WaveformDialog::TraceColour 一致)
+    return x >= 0 && y >= 0 && x < img.GetWidth() && y < img.GetHeight() &&
+           img.GetRed(x,y) == 15 && img.GetGreen(x,y) == 118 && img.GetBlue(x,y) == 110;
+}
+struct PenScan { std::set<int> ys; int minX = INT_MAX, maxX = -1; };
+static PenScan ScanPen(const wxImage& img) {            // 波形颜色出现在哪些行、最左最右到哪
+    PenScan r;
+    for (int y = 0; y < img.GetHeight(); ++y)
+        for (int x = 0; x < img.GetWidth(); ++x)
+            if (IsPen(img, x, y)) { r.ys.insert(y); r.minX = std::min(r.minX, x); r.maxX = std::max(r.maxX, x); }
+    return r;
 }
 int main(int argc, char** argv) {
     if (!wxEntryStart(argc, argv) || !wxTheApp->CallOnInit()) return 2;
@@ -324,6 +351,55 @@ int main(int argc, char** argv) {
               canvas->waveHistory.size()==1 && !canvas->waveHistory.back().empty()));
     }
     canvas->StopSim();
+
+    // 波形窗口(任务 A3):窗口要显示在屏幕上,并且真的画出电平正确的方波。
+    // 做法:往 canvas 里放已知数据,截取窗口像素,看波形颜色落在哪里。
+    {
+        WaveformDialog* wave = new WaveformDialog(frame, canvas);
+        wave->Move(400, 300);
+        wave->Show(); wave->Raise(); wave->Update(); wxYield();
+        Check("waveform dialog is shown on screen", wave->IsShownOnScreen());
+
+        canvas->waveNames.clear();   canvas->waveNames.push_back("U1 CLK");
+        canvas->waveCompIds.clear(); canvas->waveCompIds.push_back(1);
+        canvas->waveHistory.clear();
+        wave->Refresh(); wave->Update(); wxYield();                      // 清空后先让窗口重画,再截屏
+        Check("waveform dialog draws no trace without samples", ScanPen(CaptureWindow(wave)).minX == INT_MAX);
+
+        auto load = [&](const std::vector<int>& levels) {
+            canvas->waveHistory.clear();
+            for (int v : levels) { wxVector<int> row; row.push_back(v); canvas->waveHistory.push_back(row); }
+            wave->Refresh(); wave->Update(); wxYield();
+            return CaptureWindow(wave);
+        };
+        const PenScan low  = ScanPen(load(std::vector<int>(40, 0)));
+        const PenScan high = ScanPen(load(std::vector<int>(40, 1)));
+        Check("waveform constant-low is one flat line",  low.minX  < INT_MAX && low.ys.size()  <= 2);
+        Check("waveform constant-high is one flat line", high.minX < INT_MAX && high.ys.size() <= 2);
+        Check("waveform draws high level above low level",
+              !low.ys.empty() && !high.ys.empty() && *high.ys.rbegin() < *low.ys.begin());
+
+        std::vector<int> edgeLevels(20, 0); edgeLevels.insert(edgeLevels.end(), 20, 1);   // 前 20 步低,后 20 步高
+        const wxImage edgeImg = load(edgeLevels);
+        const int yLo = *low.ys.begin(), yHi = *high.ys.rbegin();
+        const PenScan e = ScanPen(edgeImg);
+        const int run = ((e.maxX - e.minX + 1) / 40) * 20;                               // 20 步应当占的宽度
+        int lowCols = 0, highCols = 0, lowMaxX = -1, highMinX = INT_MAX, edgeCols = 0;
+        for (int x = 0; x < edgeImg.GetWidth(); ++x) {
+            if (IsPen(edgeImg, x, yLo)) { ++lowCols;  lowMaxX = x; }
+            if (IsPen(edgeImg, x, yHi)) { ++highCols; highMinX = std::min(highMinX, x); }
+        }
+        for (int x = e.minX; x <= e.maxX; ++x) {
+            int span = 0;
+            for (int y = yHi; y <= yLo; ++y) if (IsPen(edgeImg, x, y)) ++span;
+            if (span >= yLo - yHi + 1) ++edgeCols;
+        }
+        Check("waveform low run spans exactly the low samples",   std::abs(lowCols - run)  <= 3);
+        Check("waveform high run spans exactly the high samples", std::abs(highCols - run) <= 3);
+        Check("waveform edge sits where the level changes", std::abs(lowMaxX - highMinX) <= 1);
+        Check("waveform draws a vertical edge at the transition", edgeCols >= 1 && edgeCols <= 2);
+        wave->Destroy();
+    }
 
     wxRemoveFile(moduleFile);
 

@@ -353,9 +353,36 @@ int main(int argc, char** argv) {
         Check("GEDA-PCB brackets balanced", (depth == 0 && minD >= 0) ? 1 : 0, 1);
         Check("GEDA-PCB layer stack", ps.find("Layer(1 \"top\")") != std::string::npos &&
                                           ps.find("Layer(6 \"bottom\")") != std::string::npos ? 1 : 0, 1);
-        // 网格排布:每个元件位置不同(老师样例是重叠的,pcb 里要手动 Disperse;我们直接铺开)
-        Check("GEDA-PCB grid row0", ps.find("Element(0x00 \"DIP14\" \"U3\" \"XOR\" 180000 40000 ") != std::string::npos ? 1 : 0, 1);
-        Check("GEDA-PCB grid row1", ps.find("Element(0x00 \"DIP14\" \"U4\" \"AND\" 60000 130000 ") != std::string::npos ? 1 : 0, 1);
+        // 网格排布:元件按 1100 x 1000 的步距铺开(老师样例是重叠的,pcb 里要手动 Disperse)
+        Check("GEDA-PCB grid row0", ps.find("Element(0x00 \"DIP14\" \"U3\" \"XOR\" 3420 1100 ") != std::string::npos ? 1 : 0, 1);
+        Check("GEDA-PCB grid row1", ps.find("Element(0x00 \"DIP14\" \"U4\" \"AND\" 1220 2100 ") != std::string::npos ? 1 : 0, 1);
+        // 焊盘尺寸与间距沿用老师样例(引脚间距 100、焊盘直径 60):曾被误放大 100 倍,靠这条守住
+        Check("GEDA-PCB pad geometry matches teacher sample",
+              ps.find("\tPin(3250 1050 60 28 \"1\" 0x101)\n") != std::string::npos ? 1 : 0, 1);
+        // 数值必须留在老师样例的量级:旧版曾整体放大 100 倍,超大坐标在 pcb-rnd 读取时溢出,
+        // 元件被挤到同一位置,报近千条 SHORT,自动布线随之中止。
+        {
+            std::vector<std::pair<int,int>> pads;
+            int maxCoord = 0, padSize = 0;
+            const std::regex padRe("\\tPin\\((-?[0-9]+) (-?[0-9]+) ([0-9]+) ");
+            for (auto it = std::sregex_iterator(ps.begin(), ps.end(), padRe); it != std::sregex_iterator(); ++it) {
+                const int px = std::stoi((*it)[1]), py = std::stoi((*it)[2]);
+                pads.push_back({px, py});
+                padSize = std::max(padSize, std::stoi((*it)[3]));
+                maxCoord = std::max(maxCoord, std::max(std::abs(px), std::abs(py)));
+            }
+            // 老师样例的焊盘坐标都在 1000 以内;板框是 6000 x 5000,留足余量
+            Check("GEDA-PCB coordinates stay in teacher-sample range", maxCoord <= 50000 ? 1 : 0, 1);
+            // 任意两个焊盘中心在该方向上的距离都不得小于焊盘直径
+            int overlaps = 0;
+            for (size_t a = 0; a < pads.size(); a++)
+                for (size_t b = a + 1; b < pads.size(); b++) {
+                    int dx = pads[a].first - pads[b].first; if (dx < 0) dx = -dx;
+                    int dy = pads[a].second - pads[b].second; if (dy < 0) dy = -dy;
+                    if (dx < padSize && dy < padSize) overlaps++;
+                }
+            Check("GEDA-PCB no overlapping pads", overlaps, 0);
+        }
     }
 
     // ============ 互操作:解析 KiCad 自己导出的网表 ============
